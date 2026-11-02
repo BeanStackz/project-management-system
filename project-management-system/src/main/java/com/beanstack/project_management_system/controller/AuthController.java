@@ -1,0 +1,98 @@
+package com.beanstack.project_management_system.controller;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.beanstack.project_management_system.config.JwtProvider;
+import com.beanstack.project_management_system.model.User;
+import com.beanstack.project_management_system.repository.UserRepository;
+import com.beanstack.project_management_system.request.LoginRequest;
+import com.beanstack.project_management_system.response.AuthResponse;
+import com.beanstack.project_management_system.service.CustomUserDetailsImpl;
+
+import jakarta.transaction.Transactional;
+
+@RestController 
+@RequestMapping("/auth")
+public class AuthController {
+    private final Logger logger = LoggerFactory.getLogger(AuthController.class);
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final CustomUserDetailsImpl customUserDetailsImpl;
+    public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder, CustomUserDetailsImpl customUserDetailsImpl) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.customUserDetailsImpl = customUserDetailsImpl;
+    }
+
+    @PostMapping("/register")
+    @Transactional
+    public ResponseEntity<?> registerUser(@RequestBody User user) {
+        // Check if the email already exists
+        if (userRepository.findByEmail(user.getEmail()) != null) {
+            return ResponseEntity.badRequest().body("Email is already in use.");
+        }
+
+        User createdUser = new User();
+        createdUser.setFullName(user.getFullName());
+        createdUser.setEmail(user.getEmail());
+        createdUser.setPassword(passwordEncoder.encode(user.getPassword()));
+        userRepository.save(createdUser);
+
+        // Create Authentication object for the newly registered user
+        Authentication auth = new UsernamePasswordAuthenticationToken(user.getEmail(), user.getPassword());
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        String  jwt = JwtProvider.generateToken(auth);
+
+        AuthResponse res = new AuthResponse();
+        res.setMessage("Sign up success");
+        res.setJwt(jwt);
+        logger.info("User registered successfully: " + user.getEmail());
+        logger.info("JWT generated for user: " + user.getEmail());
+        logger.info("JWT: " + jwt);
+        return new ResponseEntity<>(createdUser, HttpStatus.CREATED);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> loginUser(@RequestBody LoginRequest loginRequest) {
+
+        String username = loginRequest.getEmail();
+        String password = loginRequest.getPassword();
+        Authentication auth = authenticate(username, password);
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        String jwt = JwtProvider.generateToken(auth);
+
+        AuthResponse res = new AuthResponse();
+        res.setMessage("Login success");
+        res.setJwt(jwt);
+        logger.info("User logged in successfully: " + username);
+        return new ResponseEntity<>(res, HttpStatus.OK);
+    }
+
+
+    private Authentication authenticate(String username, String password) {
+        UserDetails user = customUserDetailsImpl.loadUserByUsername(username);
+        if (user == null || !passwordEncoder.matches(password, user.getPassword())) {
+            logger.warn("Authentication failed for user: " + username);
+            throw new RuntimeException("Invalid username or password");
+        }
+        return new UsernamePasswordAuthenticationToken(user.getUsername(), user.getPassword(), user.getAuthorities());
+    }
+
+
+
+
+}
