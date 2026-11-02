@@ -15,11 +15,13 @@ public interface ProjectService {
 
     void deleteProject(Long projectId, Long userId) throws Exception;
 
-    Project updateProject(Project project, Long userId) throws Exception;
+    Project updateProject(Project project, Long projectId) throws Exception;
 
     void addUserToProject(Long projectId, Long userId) throws Exception;
 
     void removeUserFromProject(Long projectId, Long userId) throws Exception;
 
     Chat getChatByProjectId(Long projectId) throws Exception;
+
+    List<Project> searchProjects(String keyword, User user) throws Exception;
 }
