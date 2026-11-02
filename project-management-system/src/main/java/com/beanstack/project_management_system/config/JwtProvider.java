@@ -20,4 +20,14 @@ public class JwtProvider {
             .compact();
         return jwt;
     }
+
+    public static String getEmailFromToken(String token){
+        String email = Jwts.parser()
+            .verifyWith(key)
+            .build()
+            .parseSignedClaims(token)
+            .getPayload()
+            .get("email", String.class);
+        return email;
+    }
 }
