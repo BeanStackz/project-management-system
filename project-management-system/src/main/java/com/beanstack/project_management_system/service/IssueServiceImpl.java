@@ -6,6 +6,8 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 import com.beanstack.project_management_system.model.Issue;
+import com.beanstack.project_management_system.model.Project;
+import com.beanstack.project_management_system.model.User;
 import com.beanstack.project_management_system.repository.IssueRepository;
 import com.beanstack.project_management_system.request.IssueRequest;
 
@@ -13,49 +15,62 @@ import com.beanstack.project_management_system.request.IssueRequest;
 public class IssueServiceImpl implements IssueService {
 
     private final IssueRepository issueRepository;
+    private final ProjectService projectService;
+    private final UserService userService;
 
-    public IssueServiceImpl(IssueRepository issueRepository) {
+    public IssueServiceImpl(IssueRepository issueRepository, ProjectService projectService, UserService userService) {
         this.issueRepository = issueRepository;
+        this.projectService = projectService;
+        this.userService = userService;
     }
 
     @Override
     public Issue addUserToIssue(Long issueId, Long userId) throws Exception {
-        // TODO Auto-generated method stub
-        return null;
+        User user = userService.findUserById(userId);
+
+        Issue issue = getIssueById(issueId);
+        issue.setAssignee(user);
+        return issueRepository.save(issue);
     }
 
     @Override
-    public Issue createIssue(IssueRequest issueRequest, Long userId) throws Exception {
-        // TODO Auto-generated method stub
-        return null;
+    public Issue createIssue(IssueRequest issueRequest, User user) throws Exception {
+        Project project = projectService.getProjectById(issueRequest.getProjectId());
+        Issue issue = new Issue();
+        issue.setTitle(issueRequest.getTitle());
+        issue.setDescription(issueRequest.getDescription());
+        issue.setStatus(issueRequest.getStatus());
+        issue.setDueDate(issueRequest.getDueDate());
+        issue.setPriority(issueRequest.getPriority());
+        issue.setProjectID(issueRequest.getProjectId());
+        issue.setProject(project);
+        return issueRepository.save(issue);
     }
 
     @Override
-    public String deleteIssue(Long issueId, Long userId) throws Exception {
-        // TODO Auto-generated method stub
-        return null;
+    public void deleteIssue(Long issueId, Long userId) throws Exception {
+        getIssueById(issueId);
+        issueRepository.deleteById(issueId);
     }
 
     @Override
-    public Optional<Issue> getIssueById(Long issueId) throws Exception {
+    public Issue getIssueById(Long issueId) throws Exception {
         
         Optional<Issue> issue = issueRepository.findById(issueId);
-        if(issue.isEmpty()) {
-            throw new Exception("Issue not found with id: " + issueId);
-        }
-        return issue;
+        
+        return issue.get();
     }
 
     @Override
     public List<Issue> getIssueByProjectId(Long projectId) throws Exception {
-        // TODO Auto-generated method stub
-        return null;
+        return issueRepository.findByProjectId(projectId);
     }
 
     @Override
     public Issue updateStatus(Long issueId, String status) throws Exception {
-        // TODO Auto-generated method stub
-        return null;
+        Issue issue = getIssueById(issueId);
+        issue.setStatus(status);
+        return issueRepository.save(issue);
     }
     
 }

@@ -15,7 +15,6 @@ import jakarta.mail.MessagingException;
 @Service 
 public class InvitationServiceImpl implements InvitationService {
 
-    private final AppConfig appConfig;
 
     @Value("${pms.mail.base-url-frontend}")
     private String baseUrlFrontend;
@@ -23,10 +22,9 @@ public class InvitationServiceImpl implements InvitationService {
     private final InvitationRepository invitationRepository;
     private final EmailService emailService;
     
-    public InvitationServiceImpl(InvitationRepository invitationRepository, EmailService emailService, AppConfig appConfig) {
+    public InvitationServiceImpl(InvitationRepository invitationRepository, EmailService emailService) {
         this.invitationRepository = invitationRepository;
         this.emailService = emailService;
-        this.appConfig = appConfig;
     }
 
     @Override

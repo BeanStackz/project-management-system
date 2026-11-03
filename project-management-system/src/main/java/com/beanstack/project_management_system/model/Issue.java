@@ -29,6 +29,7 @@ public class Issue {
     private Long projectID;
     private String priority;
     private LocalDateTime createdAt;
+    private LocalDateTime dueDate;
     private List<String> tags = new ArrayList<>();
 
     @ManyToOne 
