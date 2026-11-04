@@ -116,7 +116,6 @@ public class ProjectController {
     public ResponseEntity<List<Project>> searchProjects(@RequestParam(required = false) String keyword,
             @RequestHeader("Authorization") String jwt) throws Exception {
         jwt = jwt.replace("Bearer ", "");
-        System.out.println(keyword);
         User user = userService.findUserProfileByJwt(jwt);
         List<Project> projects = projectService.searchProjects(keyword, user);
         return new ResponseEntity<>(projects, HttpStatus.OK);
@@ -133,11 +132,18 @@ public class ProjectController {
 
     @PostMapping("/invite")
     public ResponseEntity<MessageResponse> inviteProject(@RequestHeader("Authorization") String jwt,
-     @RequestBody Project project,
      @RequestBody InviteRequest inviteRequest
     ) throws Exception {
         jwt = jwt.replace("Bearer ", "");
         User user = userService.findUserProfileByJwt(jwt);
+        if (inviteRequest == null || inviteRequest.getProjectId() == null
+                || inviteRequest.getEmail() == null || inviteRequest.getEmail().isBlank()) {
+            throw new Exception("Project id and email are required");
+        }
+        Project project = projectService.getProjectById(inviteRequest.getProjectId());
+        if (!project.getTeam().contains(user)) {
+            throw new Exception("User is not a member of this project");
+        }
         invitationService.sendInvitation(inviteRequest.getEmail(), inviteRequest.getProjectId());
         MessageResponse messageResponse = new MessageResponse("Invitation sent successfully");
         return new ResponseEntity<>(messageResponse, HttpStatus.OK);

@@ -29,13 +29,23 @@ public class IssueServiceImpl implements IssueService {
         User user = userService.findUserById(userId);
 
         Issue issue = getIssueById(issueId);
+        if (issue.getProject() == null || !issue.getProject().getTeam().contains(user)) {
+            throw new Exception("Issue can only be assigned to a project team member");
+        }
         issue.setAssignee(user);
         return issueRepository.save(issue);
     }
 
     @Override
     public Issue createIssue(IssueRequest issueRequest, User user) throws Exception {
+        if (issueRequest == null || issueRequest.getProjectId() == null
+                || issueRequest.getTitle() == null || issueRequest.getTitle().isBlank()) {
+            throw new Exception("Issue title and project are required");
+        }
         Project project = projectService.getProjectById(issueRequest.getProjectId());
+        if (!project.getTeam().contains(user)) {
+            throw new Exception("User is not a member of this project");
+        }
         Issue issue = new Issue();
         issue.setTitle(issueRequest.getTitle());
         issue.setDescription(issueRequest.getDescription());

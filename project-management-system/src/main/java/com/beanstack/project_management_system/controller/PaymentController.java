@@ -74,8 +74,7 @@ public class PaymentController {
 
             return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new IllegalStateException("Unable to create payment link", e);
         }
-        return null;
     }
 }

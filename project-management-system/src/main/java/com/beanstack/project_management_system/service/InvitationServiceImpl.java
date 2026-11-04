@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.beanstack.project_management_system.model.Invitation;
+import com.beanstack.project_management_system.model.Project;
 import com.beanstack.project_management_system.repository.InvitationRepository;
 
 import jakarta.mail.MessagingException;
@@ -20,10 +21,13 @@ public class InvitationServiceImpl implements InvitationService {
 
     private final InvitationRepository invitationRepository;
     private final EmailService emailService;
+    private final ProjectService projectService;
     
-    public InvitationServiceImpl(InvitationRepository invitationRepository, EmailService emailService) {
+    public InvitationServiceImpl(InvitationRepository invitationRepository, EmailService emailService,
+            ProjectService projectService) {
         this.invitationRepository = invitationRepository;
         this.emailService = emailService;
+        this.projectService = projectService;
     }
 
     @Override
@@ -65,14 +69,14 @@ public class InvitationServiceImpl implements InvitationService {
         invitation.setProjectId(projectId);
         invitation.setToken(invitationToken);
         
-        invitationRepository.save(invitation);
-
-        String invitationLink = baseUrlFrontend + "/accept_invitation?token=" + invitationToken;
         try {
-            emailService.sendEmailWithToken(userEmail, invitationLink);
+            Project project = projectService.getProjectById(projectId);
+            String invitationLink = baseUrlFrontend + "/accept-invitation?token=" + invitationToken;
+            emailService.sendEmailWithToken(userEmail, invitationLink, project.getName());
         } catch (Exception e) {
             throw new MessagingException("Error occurred while sending invitation email", e);
         }
+        invitationRepository.save(invitation);
         
     }
     

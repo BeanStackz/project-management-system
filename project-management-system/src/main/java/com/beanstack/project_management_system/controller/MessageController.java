@@ -40,22 +40,37 @@ public class MessageController {
 
     @PostMapping ("/send")
     public ResponseEntity<Message> sendMessage(
-        @RequestBody CreateMessageRequest request
+        @RequestBody CreateMessageRequest request,
+        @RequestHeader("Authorization") String jwt
     ) throws Exception {
-        User user = userService.findUserById(request.getSenderId());
+        jwt = jwt.replace("Bearer ", "");
+        User user = userService.findUserProfileByJwt(jwt);
+        if (request.getContent() == null || request.getContent().isBlank() || request.getProjectId() == null) {
+            throw new Exception("Project and message content are required");
+        }
+        Chat projectChat = projectService.getChatByProjectId(request.getProjectId());
+        if (projectChat.getProject() == null || !projectChat.getProject().getTeam().contains(user)) {
+            throw new Exception("User is not a member of this project");
+        }
 
-        Chat chat = projectService.getChatByProjectId(request.getProjectId());
+        Chat chat = projectChat;
         if(chatRepository.findById(chat.getId()).isEmpty()) {
             throw new Exception("Chat not found");
         }
         
-        Message sentMessage = messageService.sendMessage(request.getSenderId(), request.getProjectId(), request.getContent());
+        Message sentMessage = messageService.sendMessage(user.getId(), request.getProjectId(), request.getContent());
         return new ResponseEntity<>(sentMessage, HttpStatus.CREATED);
     }
 
     @GetMapping("/chat/{projectId}")
-    public ResponseEntity<List<Message>> getMessagesByChatId(@PathVariable Long projectId) throws Exception {
+    public ResponseEntity<List<Message>> getMessagesByChatId(@PathVariable Long projectId,
+        @RequestHeader("Authorization") String jwt) throws Exception {
+        jwt = jwt.replace("Bearer ", "");
+        User user = userService.findUserProfileByJwt(jwt);
         Chat chat = projectService.getChatByProjectId(projectId);
+        if (chat.getProject() == null || !chat.getProject().getTeam().contains(user)) {
+            throw new Exception("User is not a member of this project");
+        }
         if(chatRepository.findById(chat.getId()).isEmpty()) {
             throw new Exception("Chat not found");
         }
