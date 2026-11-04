@@ -64,7 +64,10 @@ public class ProjectServiceImpl  implements ProjectService {
 
     @Override
     public void deleteProject(Long projectId, Long userId) throws Exception {
-        getProjectById(projectId);
+        Project project = getProjectById(projectId);
+        if (project.getOwner() == null || !project.getOwner().getId().equals(userId)) {
+            throw new Exception("Only the project owner can delete this project");
+        }
         projectRepository.deleteById(projectId);        
     }
 

@@ -160,6 +160,10 @@ export function createProject(
   )
 }
 
+export function deleteProject(token: string, projectId: number) {
+  return request<{ message: string }>(`/api/projects/${projectId}`, { method: "DELETE" }, token)
+}
+
 export function getProject(token: string, projectId: number) {
   return request<Project>(`/api/projects/${projectId}`, {}, token)
 }

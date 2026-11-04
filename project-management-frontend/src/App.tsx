@@ -16,6 +16,7 @@ import {
   Send,
   Sparkles,
   Tag,
+  Trash2,
   Users,
   X,
 } from "lucide-react"
@@ -35,6 +36,7 @@ import {
   getProject,
   getProjectChat,
   getProjects,
+  deleteProject,
   acceptInvitation,
   inviteUser,
   type Comment,
@@ -48,7 +50,7 @@ import {
 type Page = "home" | "projects" | "details" | "accept-invitation"
 type AuthMode = "login" | "register"
 
-const categories = ["all", "full stack", "frontend", "backend"]
+const categories = ["all", "full stack", "frontend", "backend", "mobile", "design"]
 const availableTags = ["react", "nextjs", "spring boot", "angular", "mysql", "mongodb"]
 
 function App() {
@@ -122,7 +124,7 @@ function App() {
       ) : page === "details" && projectId ? (
         <ProjectDetails token={token ?? ""} projectId={projectId} onBack={() => navigate("projects")} />
       ) : (
-        <ProjectsPage token={token ?? ""} onSignIn={() => setAuthOpen(true)} />
+        <ProjectsPage token={token ?? ""} user={user} onSignIn={() => setAuthOpen(true)} />
       )}
 
       {authOpen && <AuthDialog mode={authMode} onModeChange={setAuthMode} onClose={() => setAuthOpen(false)} onAuthenticated={handleAuth} />}
@@ -267,7 +269,7 @@ function Feature({ icon, title, text }: { icon: React.ReactNode; title: string; 
   return <div className="flex gap-4 rounded-2xl p-4"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.06] text-violet-300 [&_svg]:size-5">{icon}</span><div><h3 className="text-sm font-medium text-white">{title}</h3><p className="mt-1 text-sm leading-6 text-slate-500">{text}</p></div></div>
 }
 
-function ProjectsPage({ token, onSignIn }: { token: string; onSignIn: () => void }) {
+function ProjectsPage({ token, user, onSignIn }: { token: string; user: User | null; onSignIn: () => void }) {
   const { toast } = useToast()
   const [projects, setProjects] = useState<Project[]>([])
   const [query, setQuery] = useState("")
@@ -308,13 +310,25 @@ function ProjectsPage({ token, onSignIn }: { token: string; onSignIn: () => void
 
   if (!token) return <main className="mx-auto flex min-h-[calc(100svh-4rem)] max-w-2xl flex-col items-center justify-center px-5 text-center"><div className="mb-5 flex size-16 items-center justify-center rounded-2xl bg-violet-500/15 text-violet-300"><FolderKanban className="size-7" /></div><h1 className="text-3xl font-semibold text-white">Your projects are waiting</h1><p className="mt-3 text-slate-400">Sign in to connect to your workspace and see your team&apos;s work.</p><Button className="mt-7 bg-violet-500 hover:bg-violet-400" onClick={onSignIn}>Sign in to continue <ArrowRight /></Button></main>
 
+  const removeProject = async (project: Project) => {
+    if (!user?.id || project.owner?.id !== user.id) return
+    if (!window.confirm(`Delete "${project.name}"? This cannot be undone.`)) return
+    try {
+      const response = await deleteProject(token, project.id)
+      setProjects((current) => current.filter((item) => item.id !== project.id))
+      toast({ title: "Project deleted", description: response.message || `${project.name} was deleted.` })
+    } catch (err) {
+      toast({ title: "Project could not be deleted", description: err instanceof Error ? err.message : "Only the project owner can delete it.", variant: "destructive" })
+    }
+  }
+
   return <main className="mx-auto max-w-7xl px-5 py-8 lg:px-8 lg:py-12">
     <div className="mb-9 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="mb-2 text-sm text-violet-300">Workspace</p><h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">Your projects</h1><p className="mt-2 text-slate-400">Everything your team is building, in one place.</p></div><Button className="bg-violet-500 hover:bg-violet-400" onClick={() => setCreateOpen(true)}><Plus /> New project</Button></div>
     <div className="grid gap-6 lg:grid-cols-[230px_1fr]">
       <aside className="h-fit rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5"><div className="mb-5 flex items-center justify-between"><h2 className="text-sm font-semibold text-white">Filters</h2><CircleHelp className="size-4 text-slate-500" /></div><FilterGroup label="Category">{categories.map((item) => <FilterOption key={item} label={item} selected={category === item} onClick={() => setCategory(item)} />)}</FilterGroup><FilterGroup label="Tags">{["all", ...availableTags].map((item) => <FilterOption key={item} label={item} selected={tag === item} onClick={() => setTag(item)} />)}</FilterGroup></aside>
       <section><div className="mb-5 flex gap-3"><div className="relative flex-1"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" /><input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && loadProjects(query)} placeholder="Search projects..." className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.03] pl-10 pr-4 text-sm text-white outline-none placeholder:text-slate-600 focus:border-violet-400/60" /></div><Button variant="outline" size="icon" className="border-white/10 bg-white/[0.03] text-slate-400" onClick={() => { setQuery(""); loadProjects() }}><X className="size-4" /></Button></div>
         {error && <div className="mb-4 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</div>}
-        {loading ? <div className="rounded-2xl border border-white/[0.08] p-10 text-center text-sm text-slate-500">Loading your projects...</div> : filteredProjects.length === 0 ? <EmptyProjects onCreate={() => setCreateOpen(true)} /> : <div className="grid gap-4 xl:grid-cols-2">{filteredProjects.map((project) => <ProjectCard key={project.id} project={project} />)}</div>}
+        {loading ? <div className="rounded-2xl border border-white/[0.08] p-10 text-center text-sm text-slate-500">Loading your projects...</div> : filteredProjects.length === 0 ? <EmptyProjects onCreate={() => setCreateOpen(true)} /> : <div className="grid gap-4 xl:grid-cols-2">{filteredProjects.map((project) => <ProjectCard key={project.id} project={project} canDelete={project.owner?.id === user?.id} onDelete={() => removeProject(project)} />)}</div>}
       </section>
     </div>
     {createOpen && <CreateProjectDialog token={token} onClose={() => setCreateOpen(false)} onCreated={(project) => { setProjects((current) => [project, ...current]); setCreateOpen(false) }} />}
@@ -323,7 +337,7 @@ function ProjectsPage({ token, onSignIn }: { token: string; onSignIn: () => void
 
 function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) { return <div className="mb-7"><p className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-500">{label}</p><div className="space-y-1">{children}</div></div> }
 function FilterOption({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) { return <button onClick={onClick} className={`flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm capitalize transition ${selected ? "bg-violet-500/15 text-violet-200" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}><span className={`flex size-4 items-center justify-center rounded-full border ${selected ? "border-violet-300 bg-violet-400 text-[#0b0e18]" : "border-slate-600"}`}>{selected && <Check className="size-3" />}</span>{label}</button> }
-function ProjectCard({ project }: { project: Project }) { return <article onClick={() => { window.location.hash = `project/${project.id}` }} className="group cursor-pointer rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5 transition hover:-translate-y-0.5 hover:border-violet-400/30 hover:bg-white/[0.04]"><div className="flex items-start justify-between gap-4"><div className="min-w-0"><div className="mb-2 flex items-center gap-2"><span className="size-2 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/40" /><span className="text-xs capitalize text-violet-300">{project.category || "General"}</span></div><h2 className="truncate text-lg font-semibold text-white">{project.name}</h2></div><ChevronDown className="size-4 rotate-[-90deg] text-slate-500 transition group-hover:text-violet-300" /></div><p className="mt-3 min-h-12 text-sm leading-6 text-slate-500">{project.description || "No description added yet."}</p><div className="mt-5 flex flex-wrap gap-2">{(project.tags ?? []).map((projectTag) => <span key={projectTag} className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-xs text-slate-400"><Tag className="size-3" />{projectTag}</span>)}</div><div className="mt-5 flex items-center justify-between border-t border-white/[0.07] pt-4 text-xs text-slate-500"><span>{project.issues?.length ?? 0} issues</span><span>{project.team?.length ?? 0} collaborators</span></div></article> }
+function ProjectCard({ project, canDelete, onDelete }: { project: Project; canDelete: boolean; onDelete: () => void }) { return <article onClick={() => { window.location.hash = `project/${project.id}` }} className="group cursor-pointer rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5 transition hover:-translate-y-0.5 hover:border-violet-400/30 hover:bg-white/[0.04]"><div className="flex items-start justify-between gap-4"><div className="min-w-0"><div className="mb-2 flex items-center gap-2"><span className="size-2 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/40" /><span className="text-xs capitalize text-violet-300">{project.category || "General"}</span></div><h2 className="truncate text-lg font-semibold text-white">{project.name}</h2></div><div className="flex items-center gap-1"><ChevronDown className="size-4 rotate-[-90deg] text-slate-500 transition group-hover:text-violet-300" />{canDelete && <button type="button" aria-label={`Delete ${project.name}`} title="Delete project" className="rounded-md p-1.5 text-slate-500 transition hover:bg-red-400/10 hover:text-red-300" onClick={(event) => { event.stopPropagation(); onDelete() }}><Trash2 className="size-4" /></button>}</div></div><p className="mt-3 min-h-12 text-sm leading-6 text-slate-500">{project.description || "No description added yet."}</p><div className="mt-5 flex flex-wrap gap-2">{(project.tags ?? []).map((projectTag) => <span key={projectTag} className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-xs text-slate-400"><Tag className="size-3" />{projectTag}</span>)}</div><div className="mt-5 flex items-center justify-between border-t border-white/[0.07] pt-4 text-xs text-slate-500"><span>{project.issues?.length ?? 0} issues</span><span>{project.team?.length ?? 0} collaborators</span></div></article> }
 function EmptyProjects({ onCreate }: { onCreate: () => void }) { return <div className="rounded-2xl border border-dashed border-white/15 px-6 py-16 text-center"><div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-white/[0.06] text-slate-400"><FolderKanban className="size-5" /></div><h2 className="mt-4 font-medium text-white">No projects found</h2><p className="mt-1 text-sm text-slate-500">Try another filter or start something new.</p><Button size="sm" className="mt-5 bg-violet-500 hover:bg-violet-400" onClick={onCreate}><Plus /> Create project</Button></div> }
 
 function ProjectDetails({ token, projectId, onBack }: { token: string; projectId: number; onBack: () => void }) {
@@ -442,7 +456,24 @@ function IssueRow({ issue, comments, expandedComments, team, token, onUpdated }:
   }
   return <div className="border-t border-white/[0.07] py-4 first:border-t-0"><div className="flex items-start justify-between gap-4"><div><h3 className="font-medium text-slate-200">{issue.title}</h3><p className="mt-1 text-sm text-slate-500">{issue.description || "No description"}</p></div><span className={`rounded-md px-2 py-1 text-xs capitalize ${issue.status?.toLowerCase() === "done" ? "bg-emerald-400/10 text-emerald-300" : "bg-amber-400/10 text-amber-300"}`}>{issue.status || "open"}</span></div><div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500"><span className="capitalize">{issue.priority || "normal"} priority</span><span className="flex items-center gap-1"><MessageCircle className="size-3" /> {visibleComments.length || comments} comments</span><select value={issue.assignee?.id ?? ""} onChange={assign} className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-xs text-slate-300 outline-none"><option value="">Assign issue</option>{team.map((member) => <option key={member.id} value={member.id}>{member.fullName}</option>)}</select></div>{visibleComments.map((item) => <div key={item.id} className="mt-3 rounded-lg bg-white/[0.03] px-3 py-2 text-xs text-slate-400"><span className="font-medium text-slate-300">{item.user?.fullName || "Team member"}: </span>{item.content}</div>)}<div className="mt-3 flex gap-2"><input value={comment} onChange={(event) => setComment(event.target.value)} onKeyDown={(event) => event.key === "Enter" && submitComment()} placeholder="Add a comment..." className="h-8 min-w-0 flex-1 rounded-md border border-white/10 bg-white/[0.03] px-3 text-xs text-white outline-none placeholder:text-slate-600" /><Button size="sm" disabled={saving} className="h-8 border-violet-400/30 bg-violet-500 px-3 text-xs text-white shadow-sm shadow-violet-500/20 hover:bg-violet-400 hover:text-white" onClick={submitComment}>{saving ? "Adding..." : "Comment"}</Button></div></div>
 }
-function ProjectSidebar({ project, chatName, onInvite }: { project: Project; chatName: string; onInvite: () => void }) { return <aside className="space-y-5"><div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5"><SectionTitle icon={<Tag />} title="Project tags" /> <div className="flex flex-wrap gap-2">{project.tags?.length ? project.tags.map((tag) => <span key={tag} className="rounded-md bg-violet-400/10 px-2 py-1 text-xs text-violet-200">{tag}</span>) : <span className="text-sm text-slate-500">No tags added</span>}</div></div><div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5"><div className="flex items-center justify-between"><SectionTitle icon={<Users />} title="Collaborators" /><Button variant="ghost" size="icon-sm" aria-label="Invite user" onClick={onInvite}><Mail /></Button></div><div className="space-y-3">{project.team?.slice(0, 5).map((member) => <div key={member.id ?? member.email} className="flex items-center gap-3 rounded-lg p-1 transition-colors hover:bg-white/[0.04]"><span className="flex size-8 items-center justify-center rounded-full bg-sky-400/10 text-xs text-sky-200">{member.fullName.slice(0, 1)}</span><div><p className="text-sm text-slate-300">{member.fullName}</p><p className="text-xs text-slate-600">{member.email}</p></div></div>) || <span className="text-sm text-slate-500">No collaborators yet</span>}</div><Button variant="outline" size="sm" className="mt-4 w-full border-white/10 bg-white/[0.03] hover:border-violet-400/40 hover:bg-violet-400/10" onClick={onInvite}><Mail /> Invite teammate</Button></div><div className="rounded-2xl border border-violet-400/15 bg-violet-400/[0.06] p-5 transition hover:border-violet-300/30 hover:bg-violet-400/10"><MessageCircle className="size-5 text-violet-300" /><p className="mt-3 text-sm font-medium text-white">{chatName}</p><p className="mt-1 text-xs leading-5 text-slate-400">Project conversations are available in the Chat tab.</p></div></aside> }
+function ProjectSidebar({ project, chatName, onInvite }: { project: Project; chatName: string; onInvite: () => void }) {
+  const owner = project.owner
+  const collaborators = (project.team ?? []).filter((member) => member.id !== owner?.id).slice(0, 5)
+  const renderMember = (member: User, isOwner = false) => (
+    <div key={member.id ?? member.email} className={`flex items-center gap-3 rounded-lg p-1 transition-colors hover:bg-white/[0.04] ${isOwner ? "bg-violet-400/[0.06]" : ""}`}>
+      <span className={`flex size-8 items-center justify-center rounded-full text-xs ${isOwner ? "bg-violet-400/15 text-violet-200" : "bg-sky-400/10 text-sky-200"}`}>{member.fullName.slice(0, 1)}</span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="truncate text-sm text-slate-300">{member.fullName}</p>
+          {isOwner && <span className="rounded-full bg-violet-400/15 px-2 py-0.5 text-[10px] font-medium text-violet-200">Owner</span>}
+        </div>
+        <p className="truncate text-xs text-slate-600">{member.email}</p>
+      </div>
+    </div>
+  )
+
+  return <aside className="space-y-5"><div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5"><SectionTitle icon={<Tag />} title="Project tags" /> <div className="flex flex-wrap gap-2">{project.tags?.length ? project.tags.map((tag) => <span key={tag} className="rounded-md bg-violet-400/10 px-2 py-1 text-xs text-violet-200">{tag}</span>) : <span className="text-sm text-slate-500">No tags added</span>}</div></div><div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5"><div className="flex items-center justify-between"><SectionTitle icon={<Users />} title="Collaborators" /><Button variant="ghost" size="icon-sm" aria-label="Invite user" onClick={onInvite}><Mail /></Button></div><div className="space-y-3">{owner && renderMember(owner, true)}{collaborators.map((member) => renderMember(member))}{!owner && collaborators.length === 0 && <span className="text-sm text-slate-500">No collaborators yet</span>}</div><Button variant="outline" size="sm" className="mt-4 w-full border-white/10 bg-white/[0.03] hover:border-violet-400/40 hover:bg-violet-400/10" onClick={onInvite}><Mail /> Invite teammate</Button></div><div className="rounded-2xl border border-violet-400/15 bg-violet-400/[0.06] p-5 transition hover:border-violet-300/30 hover:bg-violet-400/10"><MessageCircle className="size-5 text-violet-300" /><p className="mt-3 text-sm font-medium text-white">{chatName}</p><p className="mt-1 text-xs leading-5 text-slate-400">Project conversations are available in the Chat tab.</p></div></aside>
+}
 function ChatPanel({ token, projectId, chatName, messages, onSent }: { token: string; projectId: number; chatName: string; messages: Message[]; onSent: (message: Message) => void }) {
   const { toast } = useToast()
   const [content, setContent] = useState("")
@@ -563,7 +594,7 @@ function CreateProjectDialog({ token, onClose, onCreated }: { token: string; onC
       setBusy(false)
     }
   }
-  return <DialogShell onClose={onClose}><div className="mb-7"><p className="text-sm text-violet-300">Workspace</p><h2 className="mt-2 text-2xl font-semibold text-white">Create a project</h2></div><form className="space-y-4" onSubmit={submit}><Field label="Project name" value={name} onChange={setName} placeholder="e.g. Mobile app redesign" required /><Field label="Description" value={description} onChange={setDescription} placeholder="What are you building?" /><div className="grid grid-cols-2 gap-3"><Field label="Category" value={category} onChange={setCategory} placeholder="frontend" /><Field label="Tags" value={tags} onChange={setTags} placeholder="react, nextjs" /></div>{error && <p className="text-sm text-red-300">{error}</p>}<Button type="submit" disabled={busy} className="h-10 w-full bg-violet-500 hover:bg-violet-400">{busy ? "Creating..." : "Create project"}</Button></form></DialogShell>
+  return <DialogShell onClose={onClose}><div className="mb-7"><p className="text-sm text-violet-300">Workspace</p><h2 className="mt-2 text-2xl font-semibold text-white">Create a project</h2></div><form className="space-y-4" onSubmit={submit}><Field label="Project name" value={name} onChange={setName} placeholder="e.g. Mobile app redesign" required /><Field label="Description" value={description} onChange={setDescription} placeholder="What are you building?" /><div className="grid grid-cols-2 gap-3"><label className="block text-sm text-slate-300">Category<select value={category} onChange={(event) => setCategory(event.target.value)} className="mt-2 h-10 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none"><option value="full stack">Full stack</option><option value="frontend">Frontend</option><option value="backend">Backend</option><option value="mobile">Mobile</option><option value="design">Design</option></select></label><Field label="Tags" value={tags} onChange={setTags} placeholder="react, nextjs" /></div>{error && <p className="text-sm text-red-300">{error}</p>}<Button type="submit" disabled={busy} className="h-10 w-full bg-violet-500 hover:bg-violet-400">{busy ? "Creating..." : "Create project"}</Button></form></DialogShell>
 }
 
 function DialogShell({ children, onClose }: { children: React.ReactNode; onClose: () => void }) { return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-5 backdrop-blur-sm" role="dialog" aria-modal="true"><div className="relative w-full max-w-md rounded-2xl border border-white/10 bg-[#101522] p-6 shadow-2xl"><button className="absolute right-4 top-4 rounded-md p-1 text-slate-500 hover:bg-white/10 hover:text-white" onClick={onClose} aria-label="Close dialog"><X className="size-4" /></button>{children}</div></div> }
