@@ -151,14 +151,13 @@ public class ProjectController {
 
     @GetMapping("/accept-invitation")
     public ResponseEntity<Invitation> acceptInvite(@RequestParam String token,
-         @RequestHeader("Authorization") String jwt,
-         @RequestBody Project project
-        ) throws Exception {
+         @RequestHeader("Authorization") String jwt) throws Exception {
 
             jwt = jwt.replace("Bearer ", "");
             User user = userService.findUserProfileByJwt(jwt);
             Invitation invitation = invitationService.acceptInvitation(token, user.getId());
             projectService.addUserToProject(invitation.getProjectId(), user.getId());
+            invitationService.deleteToken(token);
             return new ResponseEntity<>(invitation, HttpStatus.ACCEPTED);
     }
     

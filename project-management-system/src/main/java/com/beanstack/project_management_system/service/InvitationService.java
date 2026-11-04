@@ -4,7 +4,7 @@ import com.beanstack.project_management_system.model.Invitation;
 
 public interface InvitationService {
 
-    public void sendInvitation(String userEmail, Long projectId) throws Exception;
+    void sendInvitation(String userEmail, Long projectId) throws Exception;
 
     public Invitation acceptInvitation(String token, Long userId) throws Exception;
 

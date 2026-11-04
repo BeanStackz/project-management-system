@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ArrowRight,
   ArrowLeft,
@@ -35,6 +35,7 @@ import {
   getProject,
   getProjectChat,
   getProjects,
+  acceptInvitation,
   inviteUser,
   type Comment,
   type CreateIssueInput,
@@ -44,7 +45,7 @@ import {
   type User,
 } from "@/lib/api"
 
-type Page = "home" | "projects" | "details"
+type Page = "home" | "projects" | "details" | "accept-invitation"
 type AuthMode = "login" | "register"
 
 const categories = ["all", "full stack", "frontend", "backend"]
@@ -76,7 +77,7 @@ function App() {
     if (authMode === "login") await signIn(email, password)
     else await signUp(fullName, email, password)
     setAuthOpen(false)
-    navigate("projects")
+    if (getRoute().page !== "accept-invitation") navigate("projects")
   }
 
   return (
@@ -114,6 +115,8 @@ function App() {
 
       {status === "loading" ? (
         <main className="flex min-h-[calc(100svh-4rem)] items-center justify-center text-sm text-slate-500">Restoring your workspace...</main>
+      ) : page === "accept-invitation" ? (
+        <InvitationAcceptancePage token={token ?? ""} invitationToken={getRoute().invitationToken ?? ""} onSignIn={() => setAuthOpen(true)} onAccepted={() => navigate("projects")} />
       ) : page === "home" ? (
         <HomePage token={token ?? ""} onExplore={() => navigate("projects")} onSignIn={() => setAuthOpen(true)} />
       ) : page === "details" && projectId ? (
@@ -127,11 +130,74 @@ function App() {
   )
 }
 
-function getRoute(): { page: Page; projectId: number | null } {
+function getRoute(): { page: Page; projectId: number | null; invitationToken: string | null } {
   const hash = window.location.hash
   const match = hash.match(/^#project\/(\d+)$/)
-  if (match) return { page: "details", projectId: Number(match[1]) }
-  return { page: hash === "#projects" ? "projects" : "home", projectId: null }
+  if (match) return { page: "details", projectId: Number(match[1]), invitationToken: null }
+  const invitationMatch = hash.match(/^#accept-invitation\?token=([^&]+)$/)
+  const pathInvitationToken = window.location.pathname === "/accept-invitation"
+    ? new URLSearchParams(window.location.search).get("token")
+    : null
+  if (invitationMatch || pathInvitationToken) {
+    return {
+      page: "accept-invitation",
+      projectId: null,
+      invitationToken: decodeURIComponent(invitationMatch?.[1] ?? pathInvitationToken ?? ""),
+    }
+  }
+  return { page: hash === "#projects" ? "projects" : "home", projectId: null, invitationToken: null }
+}
+
+function InvitationAcceptancePage({
+  token,
+  invitationToken,
+  onSignIn,
+  onAccepted,
+}: {
+  token: string
+  invitationToken: string
+  onSignIn: () => void
+  onAccepted: () => void
+}) {
+  const { toast } = useToast()
+  const [loading, setLoading] = useState(false)
+  const [accepted, setAccepted] = useState(false)
+
+  useEffect(() => {
+    if (!token || !invitationToken || accepted) return
+    setLoading(true)
+    acceptInvitation(token, invitationToken)
+      .then(() => {
+        setAccepted(true)
+        toast({ title: "Invitation accepted", description: "The project is now available in your workspace." })
+      })
+      .catch((error: Error) => {
+        toast({ title: "Invitation could not be accepted", description: error.message, variant: "destructive" })
+      })
+      .finally(() => setLoading(false))
+  }, [accepted, invitationToken, toast, token])
+
+  if (!token) {
+    return <main className="mx-auto flex min-h-[calc(100svh-4rem)] max-w-lg flex-col items-center justify-center px-5 text-center"><h1 className="text-3xl font-semibold text-white">Sign in to accept your invitation</h1><p className="mt-3 text-slate-400">Use the registered email address that received this invitation.</p><Button className="mt-7 bg-violet-500 hover:bg-violet-400" onClick={onSignIn}>Sign in</Button></main>
+  }
+
+  if (!invitationToken) {
+    return <InvitationState title="Invalid invitation link" description="This invitation link is missing its token. Ask the project owner to send a new invitation." />
+  }
+
+  if (loading) {
+    return <InvitationState title="Joining your project..." description="We are updating your workspace. This will only take a moment." />
+  }
+
+  if (accepted) {
+    return <main className="mx-auto flex min-h-[calc(100svh-4rem)] max-w-lg flex-col items-center justify-center px-5 text-center"><div className="flex size-16 items-center justify-center rounded-2xl bg-emerald-400/15 text-emerald-300"><Check className="size-8" /></div><h1 className="mt-6 text-3xl font-semibold text-white">You&apos;re on the team</h1><p className="mt-3 text-slate-400">Your projects have been updated and the invited project is ready to open.</p><Button className="mt-7 bg-violet-500 hover:bg-violet-400" onClick={onAccepted}>Open projects <ArrowRight /></Button></main>
+  }
+
+  return <InvitationState title="Invitation unavailable" description="This invitation may have expired, already been used, or belong to another account." />
+}
+
+function InvitationState({ title, description }: { title: string; description: string }) {
+  return <main className="mx-auto flex min-h-[calc(100svh-4rem)] max-w-lg flex-col items-center justify-center px-5 text-center"><div className="flex size-16 items-center justify-center rounded-2xl bg-red-400/15 text-red-300"><Mail className="size-7" /></div><h1 className="mt-6 text-3xl font-semibold text-white">{title}</h1><p className="mt-3 text-slate-400">{description}</p></main>
 }
 
 function NavButton({ active, children, onClick }: { active?: boolean; children: React.ReactNode; onClick: () => void }) {
@@ -272,19 +338,29 @@ function ProjectDetails({ token, projectId, onBack }: { token: string; projectId
   const [error, setError] = useState("")
   const [createOpen, setCreateOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const refreshErrorShown = useRef(false)
+
+  const refreshProjectData = useCallback(async () => {
+    const [nextProject, nextIssues, chat, nextMessages] = await Promise.all([
+      getProject(token, projectId),
+      getIssues(token, projectId),
+      getProjectChat(token, projectId),
+      getMessages(token, projectId),
+    ])
+    const commentEntries = await Promise.all(
+      nextIssues.map(async (issue) => [issue.id, await getComments(token, issue.id)] as const),
+    )
+    setProject(nextProject)
+    setIssues(nextIssues)
+    setChatName(chat.name || "Project chat")
+    setMessages(nextMessages)
+    setComments(Object.fromEntries(commentEntries))
+  }, [projectId, token])
 
   useEffect(() => {
     let active = true
-    Promise.all([getProject(token, projectId), getIssues(token, projectId), getProjectChat(token, projectId), getMessages(token, projectId)])
-      .then(async ([nextProject, nextIssues, chat, nextMessages]) => {
-        const commentEntries = await Promise.all(nextIssues.map(async (issue) => [issue.id, await getComments(token, issue.id)] as const))
-        if (!active) return
-        setProject(nextProject)
-        setIssues(nextIssues)
-        setChatName(chat.name || "Project chat")
-        setMessages(nextMessages)
-        setComments(Object.fromEntries(commentEntries))
-      })
+    setLoading(true)
+    refreshProjectData()
       .catch((err: Error) => {
         if (active) {
           setError(err.message)
@@ -295,7 +371,25 @@ function ProjectDetails({ token, projectId, onBack }: { token: string; projectId
         if (active) setLoading(false)
       })
     return () => { active = false }
-  }, [projectId, token, toast])
+  }, [refreshProjectData, toast])
+
+  useEffect(() => {
+    let active = true
+    const intervalId = window.setInterval(() => {
+      refreshProjectData()
+        .then(() => { refreshErrorShown.current = false })
+        .catch((err: Error) => {
+          if (active && !refreshErrorShown.current) {
+            refreshErrorShown.current = true
+            toast({ title: "Live updates paused", description: err.message, variant: "destructive" })
+          }
+        })
+    }, 5000)
+    return () => {
+      active = false
+      window.clearInterval(intervalId)
+    }
+  }, [refreshProjectData, toast])
 
   if (loading) return <main className="mx-auto flex min-h-[calc(100svh-4rem)] max-w-7xl items-center justify-center px-5 text-sm text-slate-500">Loading project workspace...</main>
   if (error || !project) return <main className="mx-auto max-w-7xl px-5 py-12 lg:px-8"><Button variant="ghost" className="text-slate-400" onClick={onBack}><ArrowLeft /> Back to projects</Button><div className="mt-8 rounded-2xl border border-red-400/20 bg-red-400/10 p-6 text-red-200">{error || "Project not found"}</div></main>
@@ -321,6 +415,9 @@ function IssueRow({ issue, comments, expandedComments, team, token, onUpdated }:
   const [visibleComments, setVisibleComments] = useState<Comment[]>(expandedComments ?? [])
   const [comment, setComment] = useState("")
   const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    setVisibleComments(expandedComments ?? [])
+  }, [expandedComments])
   const submitComment = async () => {
     if (!comment.trim()) return
     setSaving(true)
@@ -343,7 +440,7 @@ function IssueRow({ issue, comments, expandedComments, team, token, onUpdated }:
       toast({ title: "Issue could not be assigned", description: err instanceof Error ? err.message : "Choose a project member.", variant: "destructive" })
     }
   }
-  return <div className="border-t border-white/[0.07] py-4 first:border-t-0"><div className="flex items-start justify-between gap-4"><div><h3 className="font-medium text-slate-200">{issue.title}</h3><p className="mt-1 text-sm text-slate-500">{issue.description || "No description"}</p></div><span className={`rounded-md px-2 py-1 text-xs capitalize ${issue.status?.toLowerCase() === "done" ? "bg-emerald-400/10 text-emerald-300" : "bg-amber-400/10 text-amber-300"}`}>{issue.status || "open"}</span></div><div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500"><span className="capitalize">{issue.priority || "normal"} priority</span><span className="flex items-center gap-1"><MessageCircle className="size-3" /> {visibleComments.length || comments} comments</span><select value={issue.assignee?.id ?? ""} onChange={assign} className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-xs text-slate-300 outline-none"><option value="">Assign issue</option>{team.map((member) => <option key={member.id} value={member.id}>{member.fullName}</option>)}</select></div>{visibleComments.map((item) => <div key={item.id} className="mt-3 rounded-lg bg-white/[0.03] px-3 py-2 text-xs text-slate-400"><span className="font-medium text-slate-300">{item.user?.fullName || "Team member"}: </span>{item.content}</div>)}<div className="mt-3 flex gap-2"><input value={comment} onChange={(event) => setComment(event.target.value)} onKeyDown={(event) => event.key === "Enter" && submitComment()} placeholder="Add a comment..." className="h-8 min-w-0 flex-1 rounded-md border border-white/10 bg-white/[0.03] px-3 text-xs text-white outline-none placeholder:text-slate-600" /><Button size="sm" disabled={saving} className="h-8 bg-white/10 text-xs hover:bg-white/15" onClick={submitComment}>Comment</Button></div></div>
+  return <div className="border-t border-white/[0.07] py-4 first:border-t-0"><div className="flex items-start justify-between gap-4"><div><h3 className="font-medium text-slate-200">{issue.title}</h3><p className="mt-1 text-sm text-slate-500">{issue.description || "No description"}</p></div><span className={`rounded-md px-2 py-1 text-xs capitalize ${issue.status?.toLowerCase() === "done" ? "bg-emerald-400/10 text-emerald-300" : "bg-amber-400/10 text-amber-300"}`}>{issue.status || "open"}</span></div><div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500"><span className="capitalize">{issue.priority || "normal"} priority</span><span className="flex items-center gap-1"><MessageCircle className="size-3" /> {visibleComments.length || comments} comments</span><select value={issue.assignee?.id ?? ""} onChange={assign} className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-xs text-slate-300 outline-none"><option value="">Assign issue</option>{team.map((member) => <option key={member.id} value={member.id}>{member.fullName}</option>)}</select></div>{visibleComments.map((item) => <div key={item.id} className="mt-3 rounded-lg bg-white/[0.03] px-3 py-2 text-xs text-slate-400"><span className="font-medium text-slate-300">{item.user?.fullName || "Team member"}: </span>{item.content}</div>)}<div className="mt-3 flex gap-2"><input value={comment} onChange={(event) => setComment(event.target.value)} onKeyDown={(event) => event.key === "Enter" && submitComment()} placeholder="Add a comment..." className="h-8 min-w-0 flex-1 rounded-md border border-white/10 bg-white/[0.03] px-3 text-xs text-white outline-none placeholder:text-slate-600" /><Button size="sm" disabled={saving} className="h-8 border-violet-400/30 bg-violet-500 px-3 text-xs text-white shadow-sm shadow-violet-500/20 hover:bg-violet-400 hover:text-white" onClick={submitComment}>{saving ? "Adding..." : "Comment"}</Button></div></div>
 }
 function ProjectSidebar({ project, chatName, onInvite }: { project: Project; chatName: string; onInvite: () => void }) { return <aside className="space-y-5"><div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5"><SectionTitle icon={<Tag />} title="Project tags" /> <div className="flex flex-wrap gap-2">{project.tags?.length ? project.tags.map((tag) => <span key={tag} className="rounded-md bg-violet-400/10 px-2 py-1 text-xs text-violet-200">{tag}</span>) : <span className="text-sm text-slate-500">No tags added</span>}</div></div><div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5"><div className="flex items-center justify-between"><SectionTitle icon={<Users />} title="Collaborators" /><Button variant="ghost" size="icon-sm" aria-label="Invite user" onClick={onInvite}><Mail /></Button></div><div className="space-y-3">{project.team?.slice(0, 5).map((member) => <div key={member.id ?? member.email} className="flex items-center gap-3 rounded-lg p-1 transition-colors hover:bg-white/[0.04]"><span className="flex size-8 items-center justify-center rounded-full bg-sky-400/10 text-xs text-sky-200">{member.fullName.slice(0, 1)}</span><div><p className="text-sm text-slate-300">{member.fullName}</p><p className="text-xs text-slate-600">{member.email}</p></div></div>) || <span className="text-sm text-slate-500">No collaborators yet</span>}</div><Button variant="outline" size="sm" className="mt-4 w-full border-white/10 bg-white/[0.03] hover:border-violet-400/40 hover:bg-violet-400/10" onClick={onInvite}><Mail /> Invite teammate</Button></div><div className="rounded-2xl border border-violet-400/15 bg-violet-400/[0.06] p-5 transition hover:border-violet-300/30 hover:bg-violet-400/10"><MessageCircle className="size-5 text-violet-300" /><p className="mt-3 text-sm font-medium text-white">{chatName}</p><p className="mt-1 text-xs leading-5 text-slate-400">Project conversations are available in the Chat tab.</p></div></aside> }
 function ChatPanel({ token, projectId, chatName, messages, onSent }: { token: string; projectId: number; chatName: string; messages: Message[]; onSent: (message: Message) => void }) {
@@ -392,23 +489,24 @@ function CreateIssueDialog({ token, projectId, onClose, onCreated }: { token: st
 function InviteUserDialog({ token, projectId, onClose }: { token: string; projectId: number; onClose: () => void }) {
   const { toast } = useToast()
   const [email, setEmail] = useState("")
-  const [busy, setBusy] = useState(false)
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!email.trim() || !email.includes("@")) {
+    const normalizedEmail = email.trim()
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
       toast({ title: "Valid email required", description: "Enter the teammate's email address.", variant: "destructive" })
       return
     }
-    setBusy(true)
+
+    onClose()
+    toast({ title: "Sending invitation", description: `We're sending an invitation to ${normalizedEmail}.` })
     try {
-      const response = await inviteUser(token, projectId, email.trim())
-      toast({ title: "Invitation sent", description: response.message || `Invitation sent to ${email.trim()}.` })
-      onClose()
+      const response = await inviteUser(token, projectId, normalizedEmail)
+      toast({ title: "Invitation sent", description: response.message || `Invitation sent to ${normalizedEmail}.` })
     } catch (err) {
       toast({ title: "Invitation could not be sent", description: err instanceof Error ? err.message : "Try again.", variant: "destructive" })
-    } finally { setBusy(false) }
+    }
   }
-  return <DialogShell onClose={onClose}><div className="mb-7"><p className="text-sm text-violet-300">Project workspace</p><h2 className="mt-2 text-2xl font-semibold text-white">Invite a teammate</h2><p className="mt-2 text-sm leading-6 text-slate-400">We&apos;ll email an invitation link. They must register with this email before they can be assigned issues.</p></div><form className="space-y-4" onSubmit={submit}><Field label="Email address" type="email" value={email} onChange={setEmail} placeholder="teammate@company.com" required /><Button type="submit" disabled={busy} className="h-10 w-full bg-violet-500 hover:bg-violet-400">{busy ? "Sending..." : "Send invitation"}</Button></form></DialogShell>
+  return <DialogShell onClose={onClose}><div className="mb-7"><p className="text-sm text-violet-300">Project workspace</p><h2 className="mt-2 text-2xl font-semibold text-white">Invite a teammate</h2><p className="mt-2 text-sm leading-6 text-slate-400">We&apos;ll email an invitation link. They must register with this email before they can be assigned issues.</p></div><form className="space-y-4" onSubmit={submit}><Field label="Email address" type="email" value={email} onChange={setEmail} placeholder="teammate@company.com" required /><Button type="submit" className="h-10 w-full bg-violet-500 hover:bg-violet-400">Send invitation</Button></form></DialogShell>
 }
 
 function AuthDialog({ mode, onModeChange, onClose, onAuthenticated }: { mode: AuthMode; onModeChange: (mode: AuthMode) => void; onClose: () => void; onAuthenticated: (email: string, password: string, fullName: string) => Promise<void> }) {

@@ -47,6 +47,13 @@ export type Chat = {
   users?: User[]
 }
 
+export type Invitation = {
+  id: number
+  token: string
+  email: string
+  projectId: number
+}
+
 export type CreateIssueInput = {
   title: string
   description: string
@@ -203,4 +210,12 @@ export function inviteUser(token: string, projectId: number, email: string) {
     method: "POST",
     body: JSON.stringify({ projectId, email }),
   }, token)
+}
+
+export function acceptInvitation(token: string, invitationToken: string) {
+  return request<Invitation>(
+    `/api/projects/accept-invitation?token=${encodeURIComponent(invitationToken)}`,
+    {},
+    token,
+  )
 }

@@ -123,8 +123,40 @@ body {
 }
 
 button,
-input {
+input,
+select,
+option {
   font: inherit;
+}
+
+select {
+  color-scheme: dark;
+  color: #e2e8f0;
+  background-color: #111827;
+  border-color: rgb(255 255 255 / 0.12);
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+select:hover {
+  border-color: rgb(167 139 250 / 0.5);
+  background-color: #171d2d;
+}
+
+select:focus-visible {
+  border-color: rgb(167 139 250 / 0.8);
+  box-shadow: 0 0 0 3px rgb(124 58 237 / 0.2);
+  outline: none;
+}
+
+option {
+  color: #e2e8f0;
+  background-color: #111827;
+}
+
+option:checked,
+option:hover {
+  color: #ffffff;
+  background-color: #6d28d9;
 }
 
 @layer base {
