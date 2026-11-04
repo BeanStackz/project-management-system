@@ -9,8 +9,13 @@ import com.beanstack.project_management_system.request.CreateCommentRequest;
 import com.beanstack.project_management_system.service.CommentService;
 import com.beanstack.project_management_system.service.UserService;
 
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -41,5 +46,21 @@ public class CommentController {
         );
         return new ResponseEntity<>(comment, HttpStatus.CREATED);
     }
-    
+
+    @DeleteMapping ("/{commentId}")
+    public ResponseEntity<String> deleteComment(
+        @RequestHeader ("Authorization") String jwt,
+        @PathVariable Long commentId
+    ) throws Exception {
+        User user = userService.findUserProfileByJwt(jwt);
+        commentService.deleteComment(commentId, user.getId());
+        return new ResponseEntity<>("Comment deleted successfully", HttpStatus.OK);
+    }
+
+    @GetMapping ("/{issueId}")
+    public ResponseEntity<List<Comment>> getCommentsByIssueId(@PathVariable Long issueId) throws Exception{
+        List<Comment> comments = commentService.getCommentsByIssueId(issueId);
+        return new ResponseEntity<>(comments, HttpStatus.OK);
+    }
+
 }
