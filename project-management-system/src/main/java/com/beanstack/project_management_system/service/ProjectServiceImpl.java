@@ -11,7 +11,6 @@ import com.beanstack.project_management_system.model.Project;
 import com.beanstack.project_management_system.model.User;
 import com.beanstack.project_management_system.repository.ProjectRepository;
 
-import jakarta.transaction.Transactional;
 
 @Service 
 public class ProjectServiceImpl  implements ProjectService {
@@ -38,7 +37,6 @@ public class ProjectServiceImpl  implements ProjectService {
     }
 
     @Override
-    @Transactional 
     public Project createProject(Project project, Long userId) throws Exception {
         Project createdProject = new Project();
 

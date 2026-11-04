@@ -52,6 +52,7 @@ public class IssueController {
 
     @PostMapping
     public ResponseEntity<IssueDTO> createIssue(@RequestBody IssueRequest issueRequest, @RequestHeader ("Authorization") String jwt) throws Exception {
+        jwt = jwt.replace("Bearer ", "");
         User tokenUser = userService.findUserProfileByJwt(jwt);
         User user = userService.findUserById(tokenUser.getId());
 
@@ -75,6 +76,7 @@ public class IssueController {
 
     @DeleteMapping ("/{issueId}")
     public ResponseEntity<MessageResponse> deleteIssue(@PathVariable Long issueId, @RequestHeader ("Authorization") String jwt) throws Exception {
+        jwt = jwt.replace("Bearer ", "");
         User user = userService.findUserProfileByJwt(jwt);
         issueService.deleteIssue(issueId, user.getId());
 

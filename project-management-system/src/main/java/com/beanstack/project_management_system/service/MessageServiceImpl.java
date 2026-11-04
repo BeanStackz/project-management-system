@@ -3,6 +3,8 @@ package com.beanstack.project_management_system.service;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.stereotype.Service;
+
 import com.beanstack.project_management_system.model.Chat;
 import com.beanstack.project_management_system.model.Message;
 import com.beanstack.project_management_system.model.Project;
@@ -10,6 +12,7 @@ import com.beanstack.project_management_system.model.User;
 import com.beanstack.project_management_system.repository.MessageRepository;
 import com.beanstack.project_management_system.repository.UserRepository;
 
+@Service 
 public class MessageServiceImpl implements MessageService {
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;

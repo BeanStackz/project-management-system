@@ -1,6 +1,5 @@
 package com.beanstack.project_management_system.service;
 
-import com.beanstack.project_management_system.config.AppConfig;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -51,7 +50,7 @@ public class InvitationServiceImpl implements InvitationService {
     @Override
     public String getTokenByUserMail(String userEmail) throws Exception {
         
-        Invitation invitation = invitationRepository.findByUserEmail(userEmail);
+        Invitation invitation = invitationRepository.findByEmail(userEmail);
         if(invitation == null) {
             throw new Exception("No invitation found for the provided email");
         }

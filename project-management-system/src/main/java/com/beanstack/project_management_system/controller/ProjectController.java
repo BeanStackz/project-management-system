@@ -45,6 +45,7 @@ public class ProjectController {
     public ResponseEntity<List<Project>> getProject(@RequestParam(required = false) String category, 
             @RequestParam(required = false) String tag, 
             @RequestHeader("Authorization") String jwt) throws Exception {
+        jwt = jwt.replace("Bearer ", "");
         User user = userService.findUserProfileByJwt(jwt);
         List<Project> projects = projectService.getProjectByTeam(user, category, tag);
         return new ResponseEntity<>(projects, HttpStatus.OK);
@@ -55,21 +56,30 @@ public class ProjectController {
     public ResponseEntity<Project> getProjectById(
         @PathVariable Long projectId, 
         @RequestHeader("Authorization") String jwt) throws Exception {
-
+        jwt = jwt.replace("Bearer ", "");
         User user = userService.findUserProfileByJwt(jwt);
         Project projects = projectService.getProjectById(projectId);
+        if(projects == null) {
+            throw new Exception("Project not found");
+        }
 
         return new ResponseEntity<>(projects, HttpStatus.OK);
     }
 
     @PostMapping
     public ResponseEntity<Project> createProject(
-        @PathVariable Long projectId, 
         @RequestHeader("Authorization") String jwt,
         @RequestBody Project project) throws Exception {
 
+        jwt = jwt.replace("Bearer ", "");
         User user = userService.findUserProfileByJwt(jwt);
         Project createdProject = projectService.createProject(project, user.getId());
+
+        if(createdProject == null) {
+            throw new Exception("Project not created");
+        }
+        // System.out.println("Project created successfully: " + createdProject.getName());
+        // System.out.println("Project ID: " + createdProject.getId());
 
         return new ResponseEntity<>(createdProject, HttpStatus.OK);
     }
@@ -80,6 +90,8 @@ public class ProjectController {
         @RequestHeader("Authorization") String jwt,
         @RequestBody Project project
     ) throws Exception {
+
+        jwt = jwt.replace("Bearer ", "");
         User user = userService.findUserProfileByJwt(jwt);
         Project updatedProject = projectService.updateProject(project, projectId);
 
@@ -90,8 +102,9 @@ public class ProjectController {
     public ResponseEntity<MessageResponse> deleteProject(
         @PathVariable Long projectId,
         @RequestHeader("Authorization") String jwt,
-        @RequestBody Project project
+        @RequestBody(required = false) Project project
     ) throws Exception {
+        jwt = jwt.replace("Bearer ", "");
         User user = userService.findUserProfileByJwt(jwt);
         projectService.deleteProject(projectId, user.getId());
         MessageResponse messageResponse = new MessageResponse("Project deleted successfully");
@@ -100,15 +113,19 @@ public class ProjectController {
     }
 
     @GetMapping("/search")
-    public ResponseEntity<List<Project>> searchProjects(@RequestParam(required = false) String param,
+    public ResponseEntity<List<Project>> searchProjects(@RequestParam(required = false) String keyword,
             @RequestHeader("Authorization") String jwt) throws Exception {
+        jwt = jwt.replace("Bearer ", "");
+        System.out.println(keyword);
         User user = userService.findUserProfileByJwt(jwt);
-        List<Project> projects = projectService.searchProjects(param, user);
+        List<Project> projects = projectService.searchProjects(keyword, user);
         return new ResponseEntity<>(projects, HttpStatus.OK);
     }
 
     @GetMapping("/{projectId}/chat")
     public ResponseEntity<Chat> getChatByProjectIdEntity(@PathVariable Long projectId, @RequestHeader("Authorization") String jwt) throws Exception {
+        
+        jwt = jwt.replace("Bearer ", "");
         User user = userService.findUserProfileByJwt(jwt);
         Chat chat = projectService.getChatByProjectId(projectId);
         return new ResponseEntity<Chat>(chat, HttpStatus.OK);
@@ -119,6 +136,7 @@ public class ProjectController {
      @RequestBody Project project,
      @RequestBody InviteRequest inviteRequest
     ) throws Exception {
+        jwt = jwt.replace("Bearer ", "");
         User user = userService.findUserProfileByJwt(jwt);
         invitationService.sendInvitation(inviteRequest.getEmail(), inviteRequest.getProjectId());
         MessageResponse messageResponse = new MessageResponse("Invitation sent successfully");
@@ -131,6 +149,7 @@ public class ProjectController {
          @RequestBody Project project
         ) throws Exception {
 
+            jwt = jwt.replace("Bearer ", "");
             User user = userService.findUserProfileByJwt(jwt);
             Invitation invitation = invitationService.acceptInvitation(token, user.getId());
             projectService.addUserToProject(invitation.getProjectId(), user.getId());

@@ -73,7 +73,7 @@ public class AuthController {
         logger.info("User registered successfully: " + user.getEmail());
         logger.info("JWT generated for user: " + user.getEmail());
         logger.info("JWT: " + jwt);
-        return new ResponseEntity<>(createdUser, HttpStatus.CREATED);
+        return new ResponseEntity<>(res, HttpStatus.CREATED);
     }
 
     @PostMapping("/login")

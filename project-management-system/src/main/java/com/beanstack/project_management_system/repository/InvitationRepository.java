@@ -8,7 +8,7 @@ public interface InvitationRepository extends JpaRepository<Invitation, Long> {
     
     Invitation findByToken(String token);
     
-    Invitation findByUserEmail(String userEmail);
+    Invitation findByEmail(String userEmail);
     
     void deleteByToken(String token);
     

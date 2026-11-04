@@ -3,6 +3,7 @@ services:
         image: docker.io/library/mysql:8.4
         container_name: project-management-mysql
         restart: unless-stopped
+        command: --caching_sha2_password_auto_generate_rsa_keys=ON
         environment:
             MYSQL_DATABASE: project_management
             MYSQL_USER: app

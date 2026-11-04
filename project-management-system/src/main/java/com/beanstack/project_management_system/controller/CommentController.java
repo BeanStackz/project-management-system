@@ -38,6 +38,7 @@ public class CommentController {
         @RequestBody CreateCommentRequest createCommentRequest,
         @RequestHeader ("Authorization") String jwt
     ) throws Exception {
+        jwt = jwt.replace("Bearer ", "");
         User user = userService.findUserProfileByJwt(jwt);
         Comment comment = commentService.createComment(
             createCommentRequest.getIssueId(),
@@ -52,6 +53,7 @@ public class CommentController {
         @RequestHeader ("Authorization") String jwt,
         @PathVariable Long commentId
     ) throws Exception {
+        jwt = jwt.replace("Bearer ", "");
         User user = userService.findUserProfileByJwt(jwt);
         commentService.deleteComment(commentId, user.getId());
         return new ResponseEntity<>("Comment deleted successfully", HttpStatus.OK);
