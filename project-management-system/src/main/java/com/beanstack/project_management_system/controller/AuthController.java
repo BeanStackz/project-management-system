@@ -20,6 +20,7 @@ import com.beanstack.project_management_system.repository.UserRepository;
 import com.beanstack.project_management_system.request.LoginRequest;
 import com.beanstack.project_management_system.response.AuthResponse;
 import com.beanstack.project_management_system.service.CustomUserDetailsImpl;
+import com.beanstack.project_management_system.service.SubscriptionService;
 
 import jakarta.transaction.Transactional;
 
@@ -30,10 +31,12 @@ public class AuthController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final CustomUserDetailsImpl customUserDetailsImpl;
-    public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder, CustomUserDetailsImpl customUserDetailsImpl) {
+    private final SubscriptionService subscriptionService;
+    public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder, CustomUserDetailsImpl customUserDetailsImpl, SubscriptionService subscriptionService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.customUserDetailsImpl = customUserDetailsImpl;
+        this.subscriptionService = subscriptionService;
     }
 
     @PostMapping("/register")
@@ -49,6 +52,14 @@ public class AuthController {
         createdUser.setEmail(user.getEmail());
         createdUser.setPassword(passwordEncoder.encode(user.getPassword()));
         userRepository.save(createdUser);
+
+        // Create a new subscription for the newly registered user
+        try {
+            subscriptionService.createSubscription(createdUser);
+        } catch (Exception e) {
+            logger.error("Error creating subscription for user: " + createdUser.getEmail(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error creating subscription");
+        }
 
         // Create Authentication object for the newly registered user
         Authentication auth = new UsernamePasswordAuthenticationToken(user.getEmail(), user.getPassword());
