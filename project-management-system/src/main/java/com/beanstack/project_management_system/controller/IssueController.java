@@ -7,7 +7,6 @@ import com.beanstack.project_management_system.DTO.IssueDTO;
 import com.beanstack.project_management_system.model.Issue;
 import com.beanstack.project_management_system.model.User;
 import com.beanstack.project_management_system.request.IssueRequest;
-import com.beanstack.project_management_system.response.AuthResponse;
 import com.beanstack.project_management_system.response.MessageResponse;
 import com.beanstack.project_management_system.service.IssueService;
 import com.beanstack.project_management_system.service.UserService;

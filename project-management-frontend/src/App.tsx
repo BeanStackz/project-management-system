@@ -8,6 +8,7 @@ import {
   CircleHelp,
   Clock3,
   FolderKanban,
+  LogOut,
   MessageCircle,
   Mail,
   Menu,
@@ -59,6 +60,7 @@ function App() {
   const [projectId, setProjectId] = useState<number | null>(() => getRoute().projectId)
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<AuthMode>("login")
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
 
   useEffect(() => {
     const onHashChange = () => {
@@ -69,6 +71,13 @@ function App() {
     window.addEventListener("hashchange", onHashChange)
     return () => window.removeEventListener("hashchange", onHashChange)
   }, [])
+
+  useEffect(() => {
+    const closeAccountMenu = () => setAccountMenuOpen(false)
+    if (!accountMenuOpen) return
+    document.addEventListener("click", closeAccountMenu)
+    return () => document.removeEventListener("click", closeAccountMenu)
+  }, [accountMenuOpen])
 
   const navigate = (nextPage: Page) => {
     window.location.hash = nextPage === "projects" ? "projects" : ""
@@ -101,9 +110,39 @@ function App() {
             {user ? (
               <>
                 <span className="hidden text-sm text-slate-400 sm:inline">{user.fullName}</span>
-                <button className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-sm font-medium text-violet-200" title="Sign out" onClick={() => { signOut(); navigate("home") }}>
-                  {user.fullName.slice(0, 1).toUpperCase()}
-                </button>
+                <div className="relative">
+                  <button
+                    className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-sm font-medium text-violet-200 transition hover:border-violet-300/50 hover:bg-violet-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70"
+                    title="Open account menu"
+                    aria-label="Open account menu"
+                    aria-expanded={accountMenuOpen}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setAccountMenuOpen((open) => !open)
+                    }}
+                  >
+                    {user.fullName.slice(0, 1).toUpperCase()}
+                  </button>
+                  {accountMenuOpen && (
+                    <div className="absolute right-0 top-12 z-50 w-48 rounded-xl border border-white/10 bg-[#111827] p-2 shadow-2xl shadow-black/40">
+                      <div className="border-b border-white/[0.08] px-3 py-2">
+                        <p className="truncate text-sm font-medium text-white">{user.fullName}</p>
+                        <p className="truncate text-xs text-slate-500">{user.email}</p>
+                      </div>
+                      <button
+                        className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-300 transition hover:bg-red-400/15 hover:text-red-200 focus-visible:bg-red-400/15 focus-visible:text-red-200 focus-visible:outline-none"
+                        onClick={() => {
+                          signOut()
+                          setAccountMenuOpen(false)
+                          navigate("home")
+                        }}
+                      >
+                        <LogOut className="size-4" />
+                        Log out
+                      </button>
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
               <Button variant="outline" size="sm" className="border-white/10 bg-white/[0.03] text-slate-200 hover:bg-white/10" onClick={() => setAuthOpen(true)}>

@@ -58,6 +58,9 @@ public class ProjectController {
         @RequestHeader("Authorization") String jwt) throws Exception {
         jwt = jwt.replace("Bearer ", "");
         User user = userService.findUserProfileByJwt(jwt);
+        if(!projectService.getProjectById(projectId).getTeam().contains(user)) {
+            throw new Exception("User is not a member of this project");
+        }
         Project projects = projectService.getProjectById(projectId);
         if(projects == null) {
             throw new Exception("Project not found");
@@ -93,6 +96,9 @@ public class ProjectController {
 
         jwt = jwt.replace("Bearer ", "");
         User user = userService.findUserProfileByJwt(jwt);
+        if(!projectService.getProjectById(projectId).getTeam().contains(user)) {
+            throw new Exception("User is not a member of this project");
+        }
         Project updatedProject = projectService.updateProject(project, projectId);
 
         return new ResponseEntity<>(updatedProject, HttpStatus.OK);
@@ -126,6 +132,9 @@ public class ProjectController {
         
         jwt = jwt.replace("Bearer ", "");
         User user = userService.findUserProfileByJwt(jwt);
+        if(!projectService.getProjectById(projectId).getTeam().contains(user)) {
+            throw new Exception("User is not a member of this project");
+        }
         Chat chat = projectService.getChatByProjectId(projectId);
         return new ResponseEntity<Chat>(chat, HttpStatus.OK);
     }
