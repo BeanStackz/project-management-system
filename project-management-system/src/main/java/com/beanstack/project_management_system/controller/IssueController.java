@@ -9,6 +9,7 @@ import com.beanstack.project_management_system.model.User;
 import com.beanstack.project_management_system.request.IssueRequest;
 import com.beanstack.project_management_system.response.MessageResponse;
 import com.beanstack.project_management_system.service.IssueService;
+import com.beanstack.project_management_system.service.PlanAccessService;
 import com.beanstack.project_management_system.service.UserService;
 
 import java.util.List;
@@ -30,10 +31,12 @@ public class IssueController {
 
     private IssueService issueService;
     private UserService userService;
+    private PlanAccessService planAccessService;
     
-    public IssueController(IssueService issueService, UserService userService) {
+    public IssueController(IssueService issueService, UserService userService, PlanAccessService planAccessService) {
         this.issueService = issueService;
         this.userService = userService;
+        this.planAccessService = planAccessService;
     }
 
     @GetMapping("/{issueId}")
@@ -54,6 +57,11 @@ public class IssueController {
         jwt = jwt.replace("Bearer ", "");
         User tokenUser = userService.findUserProfileByJwt(jwt);
         User user = userService.findUserById(tokenUser.getId());
+        if (issueRequest.getDueDate() != null
+                || issueRequest.getPriority() != null
+                && !"NORMAL".equalsIgnoreCase(issueRequest.getPriority())) {
+            planAccessService.requireAdvancedIssueTracking(user);
+        }
 
         Issue issue = issueService.createIssue(issueRequest, user);
         IssueDTO issueDTO = new IssueDTO();
@@ -85,7 +93,11 @@ public class IssueController {
     }
 
     @PutMapping ("/{issueId}/assignee/{userId}")
-    public ResponseEntity<Issue> addUserToIssue(@PathVariable Long issueId, @PathVariable Long userId) throws Exception {
+    public ResponseEntity<Issue> addUserToIssue(@PathVariable Long issueId, @PathVariable Long userId,
+            @RequestHeader("Authorization") String jwt) throws Exception {
+        jwt = jwt.replace("Bearer ", "");
+        User user = userService.findUserProfileByJwt(jwt);
+        planAccessService.requireTeamCollaboration(user);
         Issue issue = issueService.addUserToIssue(issueId, userId);
         return new ResponseEntity<Issue>(issue, HttpStatus.OK);
     }

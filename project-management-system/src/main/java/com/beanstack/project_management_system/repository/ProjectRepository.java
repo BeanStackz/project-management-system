@@ -13,6 +13,7 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     
     List<Project> findByOwner(User user);
 
+    long countByOwnerId(Long userId);
 
     List<Project> findByNameContainingAndTeamContains(String name, User user);
 

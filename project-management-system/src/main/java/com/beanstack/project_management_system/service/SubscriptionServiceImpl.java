@@ -57,9 +57,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         LocalDate endDate = subscription.getSubscriptionEndDate();
         LocalDate currentDate = LocalDate.now();
 
-        return !subscription.isCancelAtPeriodEnd()
-            || endDate.isAfter(currentDate)
-            || endDate.isEqual(currentDate);
+        return !endDate.isBefore(currentDate);
     }
 
     @Override
@@ -72,14 +70,10 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         
         subscription.setPlanType(PlanType.valueOf(planType));
         subscription.setCancelAtPeriodEnd(false);
-        subscription.setSubscriptionStartDate(java.time.LocalDate.now());
-
-        if(planType.equals(PlanType.ANNUALLY.toString()) && subscription.getPlanType().equals(PlanType.ANNUALLY)) {
-            subscription.setSubscriptionEndDate(subscription.getSubscriptionEndDate().plusMonths(12));
-        }
-        else{
-            subscription.setSubscriptionEndDate(subscription.getSubscriptionEndDate().plusMonths(1)); 
-        }
+        LocalDate startDate = LocalDate.now();
+        subscription.setSubscriptionStartDate(startDate);
+        subscription.setSubscriptionEndDate(
+                startDate.plusMonths(PlanType.ANNUALLY.toString().equals(planType) ? 12 : 1));
         return subscriptionRespository.save(subscription);
     }
 

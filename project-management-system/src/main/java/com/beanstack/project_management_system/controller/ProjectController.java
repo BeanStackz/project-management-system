@@ -22,6 +22,7 @@ import com.beanstack.project_management_system.model.User;
 import com.beanstack.project_management_system.request.InviteRequest;
 import com.beanstack.project_management_system.response.MessageResponse;
 import com.beanstack.project_management_system.service.InvitationService;
+import com.beanstack.project_management_system.service.PlanAccessService;
 import com.beanstack.project_management_system.service.ProjectService;
 import com.beanstack.project_management_system.service.UserService;
 
@@ -33,11 +34,14 @@ public class ProjectController {
     private final InvitationService invitationService;
 
     private final UserService userService;
+    private final PlanAccessService planAccessService;
 
-    public ProjectController(ProjectService projectService, UserService userService, InvitationService invitationService) {
+    public ProjectController(ProjectService projectService, UserService userService, InvitationService invitationService,
+            PlanAccessService planAccessService) {
         this.projectService = projectService;
         this.invitationService = invitationService;
         this.userService = userService;
+        this.planAccessService = planAccessService;
     }
 
 
@@ -76,6 +80,7 @@ public class ProjectController {
 
         jwt = jwt.replace("Bearer ", "");
         User user = userService.findUserProfileByJwt(jwt);
+        planAccessService.requireProjectCreation(user);
         Project createdProject = projectService.createProject(project, user.getId());
 
         if(createdProject == null) {
@@ -145,6 +150,7 @@ public class ProjectController {
     ) throws Exception {
         jwt = jwt.replace("Bearer ", "");
         User user = userService.findUserProfileByJwt(jwt);
+        planAccessService.requireTeamCollaboration(user);
         if (inviteRequest == null || inviteRequest.getProjectId() == null
                 || inviteRequest.getEmail() == null || inviteRequest.getEmail().isBlank()) {
             throw new Exception("Project id and email are required");
@@ -164,6 +170,7 @@ public class ProjectController {
 
             jwt = jwt.replace("Bearer ", "");
             User user = userService.findUserProfileByJwt(jwt);
+            planAccessService.requireTeamCollaboration(user);
             Invitation invitation = invitationService.acceptInvitation(token, user.getId());
             projectService.addUserToProject(invitation.getProjectId(), user.getId());
             invitationService.deleteToken(token);
