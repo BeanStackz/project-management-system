@@ -63,6 +63,24 @@ export type CreateIssueInput = {
   dueDate?: string
 }
 
+export type PricingPlan = {
+  planType: "FREE" | "MONTHLY" | "ANNUALLY"
+  name: string
+  monthlyPrice: number
+  annualPrice: number
+  annualDiscountPercent: number
+  features: string[]
+}
+
+export type Subscription = {
+  id: number
+  subscriptionStartDate: string
+  subscriptionEndDate: string
+  planType: PricingPlan["planType"]
+  valid: boolean
+  cancelAtPeriodEnd: boolean
+}
+
 type AuthResponse = {
   jwt: string
 }
@@ -137,6 +155,39 @@ export async function register(fullName: string, email: string, password: string
 
 export function getProfile(token: string) {
   return request<User>("/api/users/profile", {}, token)
+}
+
+export function getPricing() {
+  return request<PricingPlan[]>("/api/pricing")
+}
+
+export function getSubscription(token: string) {
+  return request<Subscription>("/api/subscriptions/user", {}, token)
+}
+
+export function cancelSubscription(token: string) {
+  return request<Subscription>("/api/subscriptions/cancel", { method: "PATCH" }, token)
+}
+
+export type PaymentLink = {
+  paymentLinkUrl: string
+  paymentId: string
+}
+
+export function createPaymentLink(token: string, planType: PricingPlan["planType"]) {
+  return request<PaymentLink>(`/api/payments/${encodeURIComponent(planType)}`, { method: "POST" }, token)
+}
+
+export function verifyPayment(
+  token: string,
+  paymentLinkId: string,
+  planType: PricingPlan["planType"],
+) {
+  return request<Subscription>(
+    `/api/payments/verify?paymentLinkId=${encodeURIComponent(paymentLinkId)}&planType=${encodeURIComponent(planType)}`,
+    { method: "POST" },
+    token,
+  )
 }
 
 export function getProjects(token: string, keyword?: string) {

@@ -23,7 +23,8 @@ public class AppConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         
         http.sessionManagement(Management -> Management.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-        .authorizeHttpRequests(authorize -> authorize.requestMatchers("/api/**").authenticated()
+        .authorizeHttpRequests(authorize -> authorize.requestMatchers("/api/pricing").permitAll()
+        .requestMatchers("/api/**").authenticated()
         .anyRequest().permitAll())
         .httpBasic(basic -> basic.disable())
         .addFilterBefore(new JwtTokenValidator(), BasicAuthenticationFilter.class)
@@ -52,5 +53,4 @@ public class AppConfig {
    
     
 }
-
 

@@ -5,13 +5,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.beanstack.project_management_system.model.PlanType;
 import com.beanstack.project_management_system.model.User;
 import com.beanstack.project_management_system.response.PaymentLinkResponse;
+import com.beanstack.project_management_system.service.SubscriptionService;
 import com.beanstack.project_management_system.service.UserService;
 import com.razorpay.PaymentLink;
 import com.razorpay.RazorpayClient;
@@ -31,11 +34,14 @@ public class PaymentController {
 
     
     private UserService userService;
+    private SubscriptionService subscriptionService;
 
-    public PaymentController(UserService userService) {
+    public PaymentController(UserService userService, SubscriptionService subscriptionService) {
         this.userService = userService;
+        this.subscriptionService = subscriptionService;
     }
 
+    @PostMapping("/{planType}")
     public ResponseEntity<PaymentLinkResponse> createPaymentLink(
         @RequestHeader("Authorization") String jwt, @PathVariable PlanType planType) throws Exception {
         jwt = jwt.replace("Bearer ", "");
@@ -52,6 +58,7 @@ public class PaymentController {
             JSONObject paymentLinkRequest = new JSONObject();
             paymentLinkRequest.put("amount", amount);
             paymentLinkRequest.put("currency", "INR");
+            paymentLinkRequest.put("reference_id", user.getId() + "-" + planType.name());
 
             JSONObject customer = new JSONObject();
             customer.put("name", user.getFullName());
@@ -63,6 +70,12 @@ public class PaymentController {
             paymentLinkRequest.put("notify", notify);
 
             paymentLinkRequest.put("callback_url", baseUrlFrontend + "/upgrade_plan/success?planType="+planType);
+            paymentLinkRequest.put("callback_method", "get");
+
+            JSONObject notes = new JSONObject();
+            notes.put("user_id", user.getId());
+            notes.put("plan_type", planType.name());
+            paymentLinkRequest.put("notes", notes);
 
             PaymentLink payment = razorpay.paymentLink.create(paymentLinkRequest);
             
@@ -75,6 +88,33 @@ public class PaymentController {
             return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (Exception e) {
             throw new IllegalStateException("Unable to create payment link", e);
+        }
+    }
+
+    @PostMapping("/verify")
+    public ResponseEntity<?> verifyPayment(
+        @RequestHeader("Authorization") String jwt,
+        @RequestParam String paymentLinkId,
+        @RequestParam PlanType planType) throws Exception {
+        jwt = jwt.replace("Bearer ", "");
+        User user = userService.findUserProfileByJwt(jwt);
+
+        try {
+            RazorpayClient razorpay = new RazorpayClient(razorpayApiKey, razorpayApiSecret);
+            PaymentLink paymentLink = razorpay.paymentLink.fetch(paymentLinkId);
+            String status = paymentLink.get("status");
+            JSONObject notes = paymentLink.get("notes");
+
+            if (!"paid".equalsIgnoreCase(status)
+                || notes == null
+                || !String.valueOf(user.getId()).equals(String.valueOf(notes.opt("user_id")))
+                || !planType.name().equals(String.valueOf(notes.opt("plan_type")))) {
+                return ResponseEntity.badRequest().body("Payment has not been completed or does not match this account.");
+            }
+
+            return ResponseEntity.ok(subscriptionService.upgradeSubscription(user.getId(), planType.name()));
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to verify payment", e);
         }
     }
 }

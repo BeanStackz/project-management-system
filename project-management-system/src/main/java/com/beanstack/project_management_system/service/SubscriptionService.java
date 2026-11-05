@@ -10,6 +10,7 @@ public interface SubscriptionService {
     Subscription getUserSubscription(Long userId) throws Exception;
 
     Subscription upgradeSubscription(Long userId, String planType) throws Exception;
+    Subscription cancelSubscription(Long userId) throws Exception;
 
     boolean isValid(Subscription subscription) throws Exception;
 }

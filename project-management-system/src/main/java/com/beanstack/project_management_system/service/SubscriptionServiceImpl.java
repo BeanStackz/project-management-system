@@ -35,10 +35,14 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     @Override
     public Subscription getUserSubscription(Long userId) throws Exception {
         Subscription subscription = subscriptionRespository.findByUserId(userId);
-        if(!isValid(subscription)) {
+        if (subscription == null || !isValid(subscription)) {
+            if (subscription == null) {
+                throw new Exception("Subscription not found for user with id: " + userId);
+            }
             subscription.setPlanType(PlanType.FREE);
             subscription.setSubscriptionEndDate(LocalDate.now().plusMonths(12));
             subscription.setSubscriptionStartDate(LocalDate.now());
+            subscription.setCancelAtPeriodEnd(false);
 
         }
 
@@ -53,7 +57,9 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         LocalDate endDate = subscription.getSubscriptionEndDate();
         LocalDate currentDate = LocalDate.now();
 
-        return endDate.isAfter(currentDate) || endDate.isEqual(currentDate);
+        return !subscription.isCancelAtPeriodEnd()
+            || endDate.isAfter(currentDate)
+            || endDate.isEqual(currentDate);
     }
 
     @Override
@@ -65,6 +71,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         }
         
         subscription.setPlanType(PlanType.valueOf(planType));
+        subscription.setCancelAtPeriodEnd(false);
         subscription.setSubscriptionStartDate(java.time.LocalDate.now());
 
         if(planType.equals(PlanType.ANNUALLY.toString()) && subscription.getPlanType().equals(PlanType.ANNUALLY)) {
@@ -73,6 +80,20 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         else{
             subscription.setSubscriptionEndDate(subscription.getSubscriptionEndDate().plusMonths(1)); 
         }
+        return subscriptionRespository.save(subscription);
+    }
+
+    @Override
+    public Subscription cancelSubscription(Long userId) throws Exception {
+        Subscription subscription = subscriptionRespository.findByUserId(userId);
+        if (subscription == null) {
+            throw new Exception("Subscription not found for user with id: " + userId);
+        }
+        if (subscription.getPlanType().equals(PlanType.FREE)) {
+            return subscription;
+        }
+
+        subscription.setCancelAtPeriodEnd(true);
         return subscriptionRespository.save(subscription);
     }
     

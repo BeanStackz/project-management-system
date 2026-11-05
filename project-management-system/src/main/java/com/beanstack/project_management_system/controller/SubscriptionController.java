@@ -6,10 +6,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.beanstack.project_management_system.model.PlanType;
 import com.beanstack.project_management_system.model.Subscription;
 import com.beanstack.project_management_system.model.User;
 import com.beanstack.project_management_system.service.SubscriptionService;
@@ -35,11 +33,12 @@ public class SubscriptionController {
         return new ResponseEntity<>(subscription, HttpStatus.OK);
     }
 
-    @PatchMapping ("/upgrade")
-    public ResponseEntity<Subscription> upgradeSubscription(@RequestHeader("Authorization") String jwt, @RequestParam PlanType planType) throws Exception {
+    @PatchMapping("/cancel")
+    public ResponseEntity<Subscription> cancelSubscription(@RequestHeader("Authorization") String jwt) throws Exception {
         jwt = jwt.replace("Bearer ", "");
         User user = userService.findUserProfileByJwt(jwt);
-        Subscription subscription = subscriptionService.upgradeSubscription(user.getId(), planType.name());
+        Subscription subscription = subscriptionService.cancelSubscription(user.getId());
         return new ResponseEntity<>(subscription, HttpStatus.OK);
     }
+
 }

@@ -28,6 +28,8 @@ public class Subscription {
 
     private boolean isValid;
 
+    private boolean cancelAtPeriodEnd;
+
     @OneToOne 
     private User user;
 }
