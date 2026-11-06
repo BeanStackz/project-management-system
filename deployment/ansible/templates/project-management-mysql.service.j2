@@ -1,0 +1,15 @@
+[Unit]
+Description=Project Management MySQL database
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=10
+ExecStartPre=-/usr/bin/podman rm -f project-management-mysql
+ExecStart=/usr/bin/podman run --name project-management-mysql --replace --network project-management --publish 127.0.0.1:3306:3306 --env MYSQL_DATABASE={{ database_name }} --env MYSQL_USER={{ database_user }} --env MYSQL_PASSWORD={{ database_password }} --env MYSQL_ROOT_PASSWORD={{ database_root_password }} --volume project-management-mysql-data:/var/lib/mysql docker.io/library/mysql:8.4
+ExecStop=/usr/bin/podman stop -t 30 project-management-mysql
+
+[Install]
+WantedBy=multi-user.target

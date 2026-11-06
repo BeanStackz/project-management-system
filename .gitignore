@@ -55,6 +55,9 @@ temp/
 .env
 .env.*
 !.env.example
+!deployment/.env.deploy.example
+/deployment/.env.deploy
+/deployment/backend.env
 application-local.properties
 application-local.yml
 application-local.yaml

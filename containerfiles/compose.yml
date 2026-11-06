@@ -20,5 +20,28 @@ services:
             retries: 5
             start_period: 30s
 
+    backend:
+        build:
+            context: ../project-management-system
+            dockerfile: Containerfile
+        container_name: project-management-backend
+        restart: unless-stopped
+        depends_on:
+            mysql:
+                condition: service_healthy
+        environment:
+            SPRING_PROFILES_ACTIVE: prod
+            SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/project_management?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
+            SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-app}
+            SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-app_password}
+            PMS_JWT_SECRET: ${PMS_JWT_SECRET:?Set PMS_JWT_SECRET in containerfiles/.env}
+            PMS_MAIL_BASE_URL_FRONTEND: ${PMS_MAIL_BASE_URL_FRONTEND:-http://localhost:5173}
+            SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
+            SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
+            RAZORPAY_API_KEY: ${RAZORPAY_API_KEY:-}
+            RAZORPAY_API_SECRET: ${RAZORPAY_API_SECRET:-}
+        ports:
+            - "8080:8080"
+
 volumes:
   mysql_data:

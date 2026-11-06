@@ -2,6 +2,7 @@ package com.beanstack.project_management_system.config;
 
 import java.util.Arrays;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -19,6 +20,9 @@ import jakarta.servlet.http.HttpServletRequest;
 @Configuration 
 @EnableWebSecurity 
 public class AppConfig {
+
+    @Value("${pms.mail.base-url-frontend}")
+    private String baseUrlFrontend;
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         
@@ -33,7 +37,7 @@ public class AppConfig {
             @Override
             public CorsConfiguration getCorsConfiguration(HttpServletRequest request) {
                 CorsConfiguration config = new CorsConfiguration();
-                config.setAllowedOrigins(Arrays.asList("http://localhost:3000", "http://localhost:4200", "http://localhost:5173"));
+                config.setAllowedOrigins(Arrays.asList("http://localhost:3000", "http://localhost:4200", "http://localhost:5173", baseUrlFrontend));
                 config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE"));
                 config.setAllowedHeaders(Arrays.asList("*"));
                 config.setAllowCredentials(true);

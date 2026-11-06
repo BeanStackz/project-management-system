@@ -1,0 +1,287 @@
+---
+- name: Deploy project management backend
+  hosts: backend
+  become: true
+  gather_facts: true
+  vars:
+    service_name: project-management-backend
+    image_name: project-management-backend:current
+    remote_archive: /tmp/project-management-backend-image.tar
+    remote_app_dir: /opt/project-management
+    backend_domain: pms.backend.20030.xyz
+    deploy_env_file: ""
+    database_mode: podman
+    database_name: project_management
+    database_user: app
+    database_password: ""
+    database_root_password: ""
+
+  pre_tasks:
+    - name: Validate supported host
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+        fail_msg: "This playbook supports Debian/Ubuntu and RHEL/Fedora hosts."
+
+    - name: Validate deployment variables
+      ansible.builtin.assert:
+        that:
+          - image_archive | length > 0
+          - image_ref | length > 0
+          - deploy_env_file | length > 0
+          - database_mode in ['podman', 'external']
+          - database_mode == 'external' or (database_password | length > 0 and database_root_password | length > 0)
+        fail_msg: "image_archive, image_ref, and deploy_env_file are required."
+
+  tasks:
+    - name: Update APT package metadata and upgrade Ubuntu
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: dist
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+
+    - name: Update DNF metadata and upgrade RedHat-family host
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
+        update_cache: true
+      when: ansible_os_family == "RedHat"
+
+    - name: Install Podman
+      ansible.builtin.package:
+        name: podman
+        state: present
+
+    - name: Install Caddy repository prerequisites on Ubuntu
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - debian-keyring
+          - debian-archive-keyring
+          - apt-transport-https
+        state: present
+        update_cache: true
+      when: ansible_os_family == "Debian"
+
+    - name: Download Caddy repository signing key
+      ansible.builtin.get_url:
+        url: https://dl.cloudsmith.io/public/caddy/stable/gpg.key
+        dest: /usr/share/keyrings/caddy-stable-archive-keyring.asc
+        mode: "0644"
+      when: ansible_os_family == "Debian"
+
+    - name: Configure Caddy APT repository
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/caddy-stable-archive-keyring.asc] https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version main"
+        filename: caddy-stable
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install Caddy or provision Nginx fallback
+      block:
+        - name: Install Caddy when available
+          ansible.builtin.package:
+            name: caddy
+            state: present
+
+        - name: Select Caddy as reverse proxy
+          ansible.builtin.set_fact:
+            reverse_proxy_service: caddy
+      rescue:
+        - name: Install Nginx fallback when Caddy is unavailable
+          ansible.builtin.package:
+            name:
+              - nginx
+              - certbot
+              - python3-certbot-nginx
+            state: present
+
+        - name: Select Nginx as reverse proxy
+          ansible.builtin.set_fact:
+            reverse_proxy_service: nginx
+
+    - name: Verify Podman is installed
+      ansible.builtin.command: podman --version
+      changed_when: false
+
+    - name: Verify reverse proxy is installed
+      ansible.builtin.command: "{{ reverse_proxy_service }} {{ 'version' if reverse_proxy_service == 'caddy' else '-v' }}"
+      changed_when: false
+
+    - name: Stop existing application and reverse-proxy services before redeploy
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: stopped
+      loop:
+        - "{{ service_name }}"
+        - project-management-mysql
+        - caddy
+        - nginx
+      failed_when: false
+
+    - name: Disable unused reverse-proxy services
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: false
+        state: stopped
+      loop:
+        - caddy
+        - nginx
+      failed_when: false
+
+    - name: Remove existing managed backend container
+      ansible.builtin.command:
+        cmd: "podman rm --force {{ service_name }}"
+      register: removed_backend_container
+      changed_when: removed_backend_container.rc == 0
+      failed_when: removed_backend_container.rc not in [0, 1]
+
+    - name: Remove existing managed MySQL container
+      ansible.builtin.command:
+        cmd: "podman rm --force project-management-mysql"
+      register: removed_mysql_container
+      changed_when: removed_mysql_container.rc == 0
+      failed_when: removed_mysql_container.rc not in [0, 1]
+
+    - name: Create Podman application network
+      ansible.builtin.shell:
+        cmd: "podman network exists project-management || podman network create project-management"
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Create application directory
+      ansible.builtin.file:
+        path: "{{ remote_app_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Install MySQL systemd service
+      ansible.builtin.template:
+        src: project-management-mysql.service.j2
+        dest: /etc/systemd/system/project-management-mysql.service
+        owner: root
+        group: root
+        mode: "0644"
+      when: database_mode == 'podman'
+
+    - name: Upload container image
+      ansible.builtin.copy:
+        src: "{{ image_archive }}"
+        dest: "{{ remote_archive }}"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Load container image
+      ansible.builtin.command:
+        cmd: "podman load --input {{ remote_archive }}"
+      register: image_load
+      changed_when: true
+
+    - name: Tag container image for systemd
+      ansible.builtin.command:
+        cmd: "podman tag {{ image_ref }} {{ image_name }}"
+      changed_when: true
+
+    - name: Upload backend environment
+      ansible.builtin.copy:
+        src: "{{ deploy_env_file }}"
+        dest: "{{ remote_app_dir }}/backend.env"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+    - name: Install systemd service
+      ansible.builtin.template:
+        src: project-management-backend.service.j2
+        dest: "/etc/systemd/system/{{ service_name }}.service"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Configure Caddy reverse proxy
+      ansible.builtin.template:
+        src: Caddyfile.j2
+        dest: /etc/caddy/Caddyfile
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload Caddy
+      when: reverse_proxy_service == 'caddy'
+
+    - name: Configure Nginx reverse proxy fallback
+      ansible.builtin.template:
+        src: nginx.conf.j2
+        dest: /etc/nginx/sites-available/project-management
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload Nginx
+      when: reverse_proxy_service == 'nginx'
+
+    - name: Enable Nginx reverse proxy fallback
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/project-management
+        dest: /etc/nginx/sites-enabled/project-management
+        state: link
+      when: reverse_proxy_service == 'nginx'
+
+    - name: Remove default Nginx site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      when: reverse_proxy_service == 'nginx'
+
+    - name: Enable and start backend service
+      ansible.builtin.systemd:
+        name: "{{ service_name }}"
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Enable and start MySQL service
+      ansible.builtin.systemd:
+        name: project-management-mysql
+        enabled: true
+        state: started
+        daemon_reload: true
+      when: database_mode == 'podman'
+
+    - name: Enable and start selected reverse proxy
+      ansible.builtin.systemd:
+        name: "{{ reverse_proxy_service }}"
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Stop MySQL service when using external database
+      ansible.builtin.systemd:
+        name: project-management-mysql
+        enabled: false
+        state: stopped
+      when: database_mode == 'external'
+      failed_when: false
+
+    - name: Remove uploaded image archive
+      ansible.builtin.file:
+        path: "{{ remote_archive }}"
+        state: absent
+
+  handlers:
+    - name: Reload Caddy
+      ansible.builtin.systemd:
+        name: caddy
+        enabled: true
+        state: reloaded
+
+    - name: Reload Nginx
+      ansible.builtin.systemd:
+        name: nginx
+        enabled: true
+        state: reloaded

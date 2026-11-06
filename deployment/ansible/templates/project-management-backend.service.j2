@@ -1,0 +1,20 @@
+[Unit]
+Description=Project Management Spring Boot backend
+After=network-online.target
+Wants=network-online.target
+{% if database_mode == 'podman' %}
+Requires=project-management-mysql.service
+After=project-management-mysql.service
+{% endif %}
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=10
+TimeoutStartSec=0
+ExecStartPre=-/usr/bin/podman rm -f {{ service_name }}
+ExecStart=/usr/bin/podman run --name {{ service_name }} --replace --network project-management --publish 127.0.0.1:8080:8080 --env-file {{ remote_app_dir }}/backend.env {{ image_name }}
+ExecStop=/usr/bin/podman stop -t 20 {{ service_name }}
+
+[Install]
+WantedBy=multi-user.target
