@@ -21,6 +21,7 @@ if [[ -f "${DEPLOY_CONFIG_FILE}" ]]; then
 fi
 
 DATABASE_MODE="${DEPLOY_DATABASE_MODE:-podman}"
+RESET_DATABASE="${DEPLOY_RESET_DATABASE:-false}"
 
 required_vars=(
   DEPLOY_HOST
@@ -48,6 +49,14 @@ if [[ "${DATABASE_MODE}" != "podman" && "${DATABASE_MODE}" != "external" ]]; the
 fi
 if [[ "${DATABASE_MODE}" == "external" && -z "${DEPLOY_EXTERNAL_DATABASE_URL:-}" ]]; then
   printf 'DEPLOY_EXTERNAL_DATABASE_URL is required when DEPLOY_DATABASE_MODE=external.\n' >&2
+  exit 1
+fi
+if [[ "${RESET_DATABASE}" != "true" && "${RESET_DATABASE}" != "false" ]]; then
+  printf 'DEPLOY_RESET_DATABASE must be true or false.\n' >&2
+  exit 1
+fi
+if [[ "${RESET_DATABASE}" == "true" && "${DATABASE_MODE}" != "podman" ]]; then
+  printf 'DEPLOY_RESET_DATABASE=true is supported only with DEPLOY_DATABASE_MODE=podman.\n' >&2
   exit 1
 fi
 
@@ -111,6 +120,7 @@ extra_vars=(
   "-e" "database_user=${DEPLOY_DB_USER:-app}"
   "-e" "database_password=${DEPLOY_DB_PASSWORD:-}"
   "-e" "database_root_password=${DEPLOY_DB_ROOT_PASSWORD:-}"
+  "-e" "reset_database=${RESET_DATABASE}"
 )
 ansible-playbook -i "${INVENTORY}" "${ANSIBLE_DIR}/deploy.yml" "${extra_vars[@]}"
 

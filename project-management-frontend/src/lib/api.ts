@@ -102,9 +102,6 @@ export class ApiError extends Error {
 
 function getErrorMessage(status: number, body: string) {
   if (status === 401) return "Your session has expired. Please sign in again."
-  if (status === 403) return "You do not have permission to perform this action."
-  if (status === 404) return "The requested resource could not be found."
-  if (status >= 500) return "The server could not complete that request. Please try again."
 
   try {
     const parsed = JSON.parse(body) as { message?: string; error?: string }
@@ -113,6 +110,10 @@ function getErrorMessage(status: number, body: string) {
   } catch {
     // The backend may return plain text for validation errors.
   }
+
+  if (status === 403) return "You do not have permission to perform this action."
+  if (status === 404) return "The requested resource could not be found."
+  if (status >= 500) return "The server could not complete that request. Please try again."
 
   return body.length > 160 ? "Please check your details and try again." : body || "Request failed."
 }

@@ -143,6 +143,19 @@ overwrites the Caddy or Nginx configuration from the current repository
 templates. The MySQL data volume is preserved; only the MySQL container is
 recreated.
 
+Database reset is disabled by default. To intentionally drop and recreate the
+configured application database during a deployment, set this in
+`deployment/.env.deploy`:
+
+```env
+DEPLOY_RESET_DATABASE=true
+```
+
+This deletes all application records while preserving the MySQL Podman volume,
+container, database user, and root credentials. The reset is supported only
+when `DEPLOY_DATABASE_MODE=podman`. Set it back to `false` after the reset to
+prevent accidental deletion on a later deployment.
+
 By default, the deployment creates a persistent MySQL Podman container on the
 VM and connects the backend to it:
 

@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.beanstack.project_management_system.model.Chat;
 import com.beanstack.project_management_system.model.Project;
@@ -26,10 +27,14 @@ public class ProjectServiceImpl  implements ProjectService {
     }
 
     @Override
+    @Transactional
     public void addUserToProject(Long projectId, Long userId) throws Exception {
         Project project = getProjectById(projectId);
         User user = userService.findUserById(userId);
         if(!project.getTeam().contains(user)) {
+            if (project.getChat() == null) {
+                throw new Exception("Project chat is not available");
+            }
             project.getChat().getUsers().add(user);
             project.getTeam().add(user);
         }

@@ -15,6 +15,7 @@
     database_user: app
     database_password: ""
     database_root_password: ""
+    reset_database: false
 
   pre_tasks:
     - name: Validate supported host
@@ -31,6 +32,8 @@
           - deploy_env_file | length > 0
           - database_mode in ['podman', 'external']
           - database_mode == 'external' or (database_password | length > 0 and database_root_password | length > 0)
+          - database_name is match('^[A-Za-z0-9_]+$')
+          - not (reset_database | bool) or database_mode == 'podman'
         fail_msg: "image_archive, image_ref, and deploy_env_file are required."
 
   tasks:
@@ -238,13 +241,6 @@
         state: absent
       when: reverse_proxy_service == 'nginx'
 
-    - name: Enable and start backend service
-      ansible.builtin.systemd:
-        name: "{{ service_name }}"
-        enabled: true
-        state: started
-        daemon_reload: true
-
     - name: Enable and start MySQL service
       ansible.builtin.systemd:
         name: project-management-mysql
@@ -252,6 +248,46 @@
         state: started
         daemon_reload: true
       when: database_mode == 'podman'
+
+    - name: Wait for MySQL container to become ready
+      ansible.builtin.command:
+        cmd: "podman exec project-management-mysql mysqladmin ping -uroot --silent"
+      environment:
+        MYSQL_PWD: "{{ database_root_password }}"
+      register: mysql_ready
+      until: mysql_ready.rc == 0
+      retries: 30
+      delay: 2
+      changed_when: false
+      when: database_mode == 'podman'
+
+    - name: Reset application database when explicitly requested
+      ansible.builtin.command:
+        cmd: >-
+          podman exec --env MYSQL_PWD project-management-mysql
+          mysql -uroot --batch --skip-column-names
+          -e "DROP DATABASE IF EXISTS {{ database_name }};
+          CREATE DATABASE {{ database_name }};"
+      environment:
+        MYSQL_PWD: "{{ database_root_password }}"
+      changed_when: true
+      when:
+        - database_mode == 'podman'
+        - reset_database | bool
+
+    - name: Confirm database reset
+      ansible.builtin.debug:
+        msg: "Database {{ database_name }} was dropped and recreated. Existing application data was deleted."
+      when:
+        - database_mode == 'podman'
+        - reset_database | bool
+
+    - name: Enable and start backend service
+      ansible.builtin.systemd:
+        name: "{{ service_name }}"
+        enabled: true
+        state: started
+        daemon_reload: true
 
     - name: Enable and start selected reverse proxy
       ansible.builtin.systemd:

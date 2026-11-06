@@ -178,6 +178,19 @@ DEPLOY_DB_PASSWORD=strong-password
 DEPLOY_DB_ROOT_PASSWORD=strong-root-password
 ```
 
+Database clearing is opt-in. Set `DEPLOY_RESET_DATABASE=true` in
+`deployment/.env.deploy` only when you want Ansible to connect to the MySQL
+container, drop the configured application database, and recreate it before
+starting the backend:
+
+```env
+DEPLOY_RESET_DATABASE=true
+```
+
+This deletes all application records but preserves the Podman volume,
+container, database user, and root credentials. It is supported only for the
+VM-local Podman database. Set it back to `false` immediately after the reset.
+
 ### Deploy
 
 From Fedora WSL:

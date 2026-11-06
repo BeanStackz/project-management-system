@@ -1,5 +1,7 @@
 package com.beanstack.project_management_system.controller;
 
+import java.util.UUID;
+
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -10,7 +12,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
 import com.beanstack.project_management_system.model.PlanType;
 import com.beanstack.project_management_system.model.User;
 import com.beanstack.project_management_system.response.PaymentLinkResponse;
@@ -58,7 +59,9 @@ public class PaymentController {
             JSONObject paymentLinkRequest = new JSONObject();
             paymentLinkRequest.put("amount", amount);
             paymentLinkRequest.put("currency", "INR");
-            paymentLinkRequest.put("reference_id", user.getId() + "-" + planType.name());
+            // Razorpay requires a unique reference of no more than 40 characters.
+            // User and plan ownership are retained in the notes below.
+            paymentLinkRequest.put("reference_id", UUID.randomUUID().toString().replace("-", ""));
 
             JSONObject customer = new JSONObject();
             customer.put("name", user.getFullName());
