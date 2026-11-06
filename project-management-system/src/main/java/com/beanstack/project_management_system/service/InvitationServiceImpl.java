@@ -85,15 +85,16 @@ public class InvitationServiceImpl implements InvitationService {
         invitation.setEmail(normalizedEmail);
         invitation.setProjectId(projectId);
         invitation.setToken(invitationToken);
+        invitationRepository.save(invitation);
 
         try {
             Project project = projectService.getProjectById(projectId);
             String invitationLink = baseUrlFrontend + "/#accept-invitation?token=" + invitationToken;
             emailService.sendEmailWithToken(normalizedEmail, invitationLink, project.getName());
         } catch (Exception e) {
+            invitationRepository.deleteByToken(invitationToken);
             throw new MessagingException("Error occurred while sending invitation email", e);
         }
-        invitationRepository.save(invitation);
         
     }
     
